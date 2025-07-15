@@ -1,0 +1,46 @@
+name: Deploy whitelabel to EC2
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - v-15
+
+jobs:
+  build:
+    name: "Fetching and restarting supervisorctl"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Execute commands via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.CRM_EC2_IP }}
+          username: ubuntu
+          key: ${{ secrets.CRM_EC2_KEY }}
+          script: |
+            echo "🔄 Deploying whitelabel to EC2..."
+            
+            cd /home/onehash
+
+            sudo -u onehash bash -c '
+              export NVM_DIR="/home/onehash/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+              nvm use 18
+
+              echo "✅ Node version in use:"
+              node -v
+
+              cd /home/onehash/frappe-bench/apps/whitelabel
+
+              echo "⬇️ Pulling latest code from v-15 branch..."
+              git pull upstream v-15
+
+              echo "⚙️ Building whitelabel app..."
+              bench build --app whitelabel
+            '
+            echo "🚀 Restarting supervisor services..."
+            sudo supervisorctl restart all
