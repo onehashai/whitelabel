@@ -1,0 +1,25 @@
+.body-sidebar,
+.body-sidebar .sidebar-toggle-btn {
+	background: var(--whitelabel-sidebar-bg, var(--surface-menu-bar));
+}
+
+.sidebar-header .header-logo img,
+.app-logo {
+	width: var(--whitelabel-logo-width, 28px);
+	height: var(--whitelabel-logo-height, 28px);
+	object-fit: contain;
+}
+
+.whitelabel-hide-help .whitelabel-help-menu-item {
+	display: none !important;
+}
+
+.whitelabel-hidden-documentation-link,
+.whitelabel-hidden-standard-support {
+	display: none !important;
+}
+
+#changelog_feed,
+.panel-changelog-feed {
+	display: none !important;
+}

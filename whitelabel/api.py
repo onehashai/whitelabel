@@ -1,99 +1,176 @@
 from __future__ import unicode_literals
+
+from urllib.parse import urlparse
+
 import frappe
-import re
-import json
-from frappe.utils import floor, flt, today, cint
-from frappe import _
 
-def whitelabel_patch():
-	#delete erpnext welcome page 
-	frappe.delete_doc_if_exists('Page', 'welcome-to-erpnext', force=1)
-	#update Welcome Blog Post
-	if frappe.db.exists("Blog Post", "Welcome"):
-		frappe.db.set_value("Blog Post","Welcome","content","")
-	update_field_label()
-	brand_name = frappe.get_hooks("brand_name")[0]
-	update_onboard_details(brand_name)
-	update_website_settings(brand_name)
-	update_system_settings(brand_name)
-	
-def boot_session(bootinfo):
-	"""boot session - send website info if guest"""
-	if frappe.session['user']!='Guest':
-		bootinfo.whitelabel_setting = frappe.get_doc("Whitelabel Setting","Whitelabel Setting")
 
-@frappe.whitelist()
-def ignore_update_popup():
-	if not frappe.db.get_single_value('Whitelabel Setting', 'disable_new_update_popup'):
-		show_update_popup_update()
+BRANDED_APPS = {"frappe", "erpnext"}
+DEFAULT_BRAND = "OneHash"
+DEFAULT_LOGO = "/assets/whitelabel/images/whitelabel_logo.svg"
+DOCUMENTATION_HOSTS = {
+	"docs.erpnext.com",
+	"docs.frappe.io",
+	"docs.frappeframework.com",
+	"frappeframework.com",
+}
+STANDARD_SUPPORT_HOSTS = {
+	"support.frappe.io",
+}
 
-def update_field_label():
-	"""Update label of section break in employee doctype"""
-	frappe.db.sql("""Update `tabDocField` set label='OneHash' where fieldname='erpnext_user' and parent='Employee'""")
 
-def update_website_settings(brand_name):
-	frappe.db.set_value("Website Settings", "Website Settings", "app_name", brand_name)
-	frappe.db.commit()
+def get_whitelabel_settings():
+	if not frappe.db.exists("DocType", "Whitelabel Setting"):
+		return None
 
-def update_system_settings(brand_name):
-	frappe.db.set_value("System Settings", "System Settings", "otp_issuer_name", brand_name)
-	frappe.db.commit()
+	return frappe.get_cached_doc("Whitelabel Setting")
 
-def update_onboard_details(brand_name):
-	update_onboard_module(brand_name)
-	update_onboard_steps(brand_name)
 
-def update_onboard_module(brand_name):
-	onboard_module_details = frappe.get_all("Module Onboarding",filters={},fields=["name"])
-	for row in onboard_module_details:
-		doc = frappe.get_doc("Module Onboarding",row.name)
-		doc.title = re.sub("ERPNext", brand_name, doc.title)
-		doc.success_message = re.sub("ERPNext", brand_name, doc.success_message)
-		doc.documentation_url = ""
-		doc.flags.ignore_mandatory = True
-		doc.save(ignore_permissions = True)
+def get_brand_name(settings):
+	configured_name = settings.whitelabel_app_name or settings.custom_navbar_title or DEFAULT_BRAND
+	return replace_brand_terms(configured_name)
 
-def update_onboard_steps(brand_name):
-	onboard_steps_details = frappe.get_all("Onboarding Step",filters={},fields=["name"])
-	for row in onboard_steps_details:
-		doc = frappe.get_doc("Onboarding Step",row.name)
-		if doc.title:
-			doc.title = re.sub("ERPNext", brand_name, doc.title)
-		if doc.description:
-			doc.description = re.sub("ERPNext", brand_name, doc.description)
-		doc.intro_video_url = ""
-		if doc.title == "Introduction to Website":
-			doc.video_url = ""
-		doc.flags.ignore_mandatory = True
-		doc.save(ignore_permissions = True)
 
-@frappe.whitelist()
-def show_update_popup_update():
-	cache = frappe.cache()
-	user  = frappe.session.user
-	update_info = cache.get_value("update-info")
-	if not update_info:
+def replace_brand_terms(value):
+	if not isinstance(value, str):
+		return value
+
+	for source in ("Frappe Framework", "ERPNext", "Frappe"):
+		value = value.replace(source, DEFAULT_BRAND)
+	return value
+
+
+def is_documentation_url(value):
+	if not value or not isinstance(value, str):
+		return False
+
+	try:
+		parsed = urlparse(value)
+	except ValueError:
+		return False
+
+	host = (parsed.hostname or "").lower()
+	path = (parsed.path or "").lower()
+	return (
+		host in DOCUMENTATION_HOSTS
+		or host.endswith(".docs.frappe.io")
+		or host.endswith(".docs.erpnext.com")
+		or (host in {"erpnext.com", "www.erpnext.com"} and path.startswith("/docs"))
+	)
+
+
+def is_standard_support_url(value):
+	if not value or not isinstance(value, str):
+		return False
+
+	try:
+		parsed = urlparse(value)
+	except ValueError:
+		return False
+
+	host = (parsed.hostname or "").lower()
+	path = (parsed.path or "").lower()
+	return (
+		host in STANDARD_SUPPORT_HOSTS
+		or (host in {"frappe.io", "www.frappe.io"} and path.startswith("/helpdesk"))
+		or (host in {"frappecloud.com", "www.frappecloud.com"} and path.startswith("/support"))
+	)
+
+
+def hide_standard_brand_links(bootinfo):
+	navbar_settings = getattr(bootinfo, "navbar_settings", None)
+	if not navbar_settings:
 		return
 
-	updates = json.loads(update_info)
+	help_dropdown = navbar_settings.get("help_dropdown") or []
+	filtered_items = []
+	for item in help_dropdown:
+		label = item.get("item_label") or ""
+		action = item.get("action") or ""
+		route = item.get("route") or ""
+		if (
+			"frappe" in label.lower()
+			or "erpnext" in label.lower()
+			or "show_about" in action
+			or is_documentation_url(route)
+			or is_standard_support_url(route)
+		):
+			continue
+		if isinstance(item, dict):
+			item["item_label"] = replace_brand_terms(label)
+		else:
+			item.item_label = replace_brand_terms(label)
+		filtered_items.append(item)
 
-	# Check if user is int the set of users to send update message to
-	update_message = ""
-	if cache.sismember("update-user-set", user):
-		for update_type in updates:
-			release_links = ""
-			for app in updates[update_type]:
-				app = frappe._dict(app)
-				release_links += "<b>{title}</b>: <a href='https://github.com/{org_name}/{app_name}/releases/tag/v{available_version}'>v{available_version}</a><br>".format(
-					available_version = app.available_version,
-					org_name          = app.org_name,
-					app_name          = app.app_name,
-					title             = app.title
-				)
-			if release_links:
-				message = _("New {} releases for the following apps are available").format(_(update_type))
-				update_message += "<div class='new-version-log'>{0}<div class='new-version-links'>{1}</div></div>".format(message, release_links)
+	if isinstance(navbar_settings, dict):
+		navbar_settings["help_dropdown"] = filtered_items
+	else:
+		navbar_settings.set("help_dropdown", filtered_items)
 
-	if update_message:
-		frappe.msgprint(update_message, title=_("New updates are available"), indicator='green')
-		cache.srem("update-user-set", user)
+
+def whitelabel_patch():
+	"""Reapply supported branding settings after a site migration."""
+	if settings := get_whitelabel_settings():
+		settings.save(ignore_permissions=True)
+
+
+def boot_session(bootinfo):
+	"""Expose branding and adapt v16 Desk metadata for system users."""
+	if frappe.session.user == "Guest":
+		return
+
+	settings = get_whitelabel_settings()
+	if not settings:
+		return
+
+	brand_name = get_brand_name(settings)
+	logo = settings.application_logo or DEFAULT_LOGO
+
+	bootinfo.whitelabel_setting = frappe._dict(
+		{
+			"application_logo": logo,
+			"logo_height": settings.logo_height,
+			"logo_width": settings.logo_width,
+			"navbar_background_color": settings.navbar_background_color,
+			"show_help_menu": settings.show_help_menu,
+			"whitelabel_app_name": brand_name,
+		}
+	)
+	bootinfo.app_logo_url = logo
+	bootinfo.changelog_feed = []
+	bootinfo.has_app_updates = False
+	bootinfo.onboarding_tours = []
+	if getattr(bootinfo, "sysdefaults", None):
+		bootinfo.sysdefaults["disable_change_log_notification"] = 1
+		bootinfo.sysdefaults["disable_system_update_notification"] = 1
+		bootinfo.sysdefaults["enable_onboarding"] = 0
+
+	for app in getattr(bootinfo, "app_data", []):
+		app["app_title"] = replace_brand_terms(app.get("app_title"))
+		if app.get("app_name") in BRANDED_APPS:
+			app["app_title"] = brand_name
+			app["app_logo_url"] = logo
+
+	renamed_icon_labels = {}
+	workspace_sidebar_items = getattr(bootinfo, "workspace_sidebar_item", {})
+	for icon in getattr(bootinfo, "desktop_icons", []):
+		old_label = icon.get("label")
+		new_label = replace_brand_terms(old_label)
+		if old_label and new_label != old_label:
+			renamed_icon_labels[old_label] = new_label
+			icon["label"] = new_label
+
+			sidebar = workspace_sidebar_items.get(old_label.lower())
+			if sidebar:
+				sidebar["label"] = new_label
+				workspace_sidebar_items[new_label.lower()] = sidebar
+
+		if icon.get("icon_type") == "App" and icon.get("app") in BRANDED_APPS:
+			icon["logo_url"] = logo
+
+	for icon in getattr(bootinfo, "desktop_icons", []):
+		parent_icon = icon.get("parent_icon")
+		if parent_icon in renamed_icon_labels:
+			icon["parent_icon"] = renamed_icon_labels[parent_icon]
+
+	hide_standard_brand_links(bootinfo)

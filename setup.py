@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
+from pathlib import Path
+
 from setuptools import setup, find_packages
 
 with open('requirements.txt') as f:
 	install_requires = f.read().strip().split('\n')
 
-# get version from __version__ variable in whitelabel/__init__.py
-from whitelabel import __version__ as version
+# Read the version without importing the package. Importing whitelabel here
+# would also import Frappe, which may not be available in an isolated build.
+version = {}
+exec((Path(__file__).parent / "whitelabel" / "version.py").read_text(), version)
 
 setup(
 	name='whitelabel',
-	version=version,
+	version=version["__version__"],
 	description='ERPNext Whitelabel',
 	author='Rishabh',
 	author_email='rishabh@onehash.ai',

@@ -4,3 +4,4 @@
 *.swp
 tags
 whitelabel/docs/current
+whitelabel/public/dist
