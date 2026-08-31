@@ -4,9 +4,13 @@ import re
 import json
 from frappe.utils import floor, flt, today, cint
 from frappe import _
+from frappe.installer import update_site_config
+
+DEFAULT_APP_LOGO = "/assets/whitelabel/images/whitelabel_logo.svg"
 
 def whitelabel_patch():
-	#delete erpnext welcome page 
+	ensure_default_logo()
+	#delete erpnext welcome page
 	frappe.delete_doc_if_exists('Page', 'welcome-to-erpnext', force=1)
 	#update Welcome Blog Post
 	if frappe.db.exists("Blog Post", "Welcome"):
@@ -16,11 +20,47 @@ def whitelabel_patch():
 	update_onboard_details(brand_name)
 	update_website_settings(brand_name)
 	update_system_settings(brand_name)
+
+def ensure_default_logo():
+	logo = (
+		frappe.db.get_single_value("Whitelabel Setting", "application_logo")
+		or frappe.db.get_single_value("Website Settings", "app_logo")
+		or frappe.db.get_single_value("Navbar Settings", "app_logo")
+		or frappe.conf.get("app_logo_url")
+		or DEFAULT_APP_LOGO
+	)
+
+	for doctype, fieldname in (
+		("Whitelabel Setting", "application_logo"),
+		("Website Settings", "app_logo"),
+		("Website Settings", "splash_image"),
+		("Navbar Settings", "app_logo"),
+	):
+		if not frappe.db.get_single_value(doctype, fieldname):
+			frappe.db.set_single_value(doctype, fieldname, logo)
+
+	if not frappe.conf.get("app_logo_url"):
+		update_site_config("app_logo_url", logo)
+
+	frappe.clear_cache()
 	
 def boot_session(bootinfo):
 	"""boot session - send website info if guest"""
 	if frappe.session['user']!='Guest':
 		bootinfo.whitelabel_setting = frappe.get_doc("Whitelabel Setting","Whitelabel Setting")
+		bootinfo.app_logo_url = (
+			frappe.db.get_single_value("Website Settings", "app_logo")
+			or frappe.db.get_single_value("Navbar Settings", "app_logo")
+			or frappe.conf.get("app_logo_url")
+			or DEFAULT_APP_LOGO
+		)
+
+def enforce_default_logo(doc, method=None):
+	if not doc.app_logo:
+		doc.app_logo = DEFAULT_APP_LOGO
+
+	if doc.doctype == "Website Settings" and not doc.splash_image:
+		doc.splash_image = DEFAULT_APP_LOGO
 
 @frappe.whitelist()
 def ignore_update_popup():
