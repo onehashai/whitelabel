@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 import frappe
 from frappe.model.document import Document
 from frappe.installer import update_site_config
+from whitelabel.api import DEFAULT_APP_LOGO
 
 class WhitelabelSetting(Document):
 	def validate(self):
@@ -31,18 +32,12 @@ class WhitelabelSetting(Document):
 				system_settings_doc.app_name = "Frappe"
 
 	def set_theme_attr(self,navbar_settings_doc,website_doc):
-		if self.application_logo:
-			navbar_settings_doc.app_logo = self.application_logo
-			website_doc.app_logo = self.application_logo
-			website_doc.splash_image = self.application_logo
-			update_site_config("app_logo_url",self.application_logo)
-			frappe.clear_cache()
-		else:
-			navbar_settings_doc.app_logo = ""
-			website_doc.app_logo = ""
-			website_doc.splash_image = ""
-			update_site_config("app_logo_url",False)
-			frappe.clear_cache()
+		logo = self.application_logo or DEFAULT_APP_LOGO
+		navbar_settings_doc.app_logo = logo
+		website_doc.app_logo = logo
+		website_doc.splash_image = logo
+		update_site_config("app_logo_url",logo)
+		frappe.clear_cache()
 	
 	def disable_onboarding(self,system_settings_doc):
 		if self.ignore_onboard_whitelabel == 1:
