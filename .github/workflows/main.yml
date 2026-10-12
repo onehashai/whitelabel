@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [closed]
     branches:
-      - v-15
+      - v-16
 
 jobs:
   build:
@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Execute commands via SSH
         uses: appleboy/ssh-action@v1.0.0
@@ -23,21 +23,21 @@ jobs:
           key: ${{ secrets.CRM_EC2_KEY }}
           script: |
             echo "🔄 Deploying whitelabel to EC2..."
-            
+
             cd /home/onehash
 
             sudo -u onehash bash -c '
               export NVM_DIR="/home/onehash/.nvm"
               [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-              nvm use 18
+              nvm use 24
 
               echo "✅ Node version in use:"
               node -v
 
               cd /home/onehash/frappe-bench/apps/whitelabel
 
-              echo "⬇️ Pulling latest code from v-15 branch..."
-              git pull upstream v-15
+              echo "⬇️ Pulling latest code from v-16 branch..."
+              git pull upstream v-16
 
               echo "⚙️ Building whitelabel app..."
               bench build --app whitelabel

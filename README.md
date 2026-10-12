@@ -1,62 +1,58 @@
-# ERPNext Whitelabel
+# Whitelabel for Frappe and ERPNext v16
 
-This app has the following features:
+Whitelabel provides configurable, site-level branding for Frappe Framework and ERPNext v16. It changes user-facing product chrome without modifying either upstream repository or rewriting business content.
 
-- Change App logo
-- Change Favicon
-- Change Splash Image
-- Hide Help Menu
-- Hide "powered by" text from the website
-- Remove welcome page
-- Update welcome blog post
-- Adjust App logo size from Whitelabel setting page
-- Update onboard steps to remove video and documentation link (Version 13)
-- Manage Navbar Background color from Whitelabel setting
-- Manage Custom Navbar Title and CSS for title from Whitelabel setting
-- Change Login Page Title from Whitelabel Setting Page (https://github.com/bhavesh95863/whitelabel/issues/7)
+## What it brands
 
+- Desk, login, website and splash logos
+- Browser favicon and page/application name
+- Desk app switcher, ERPNext desktop folder, sidebar title and colors
+- Website and email footer settings
+- OTP issuer name
+- Help, About, upstream support and documentation menu entries
+- Onboarding, product promotions, changelog and update notifications
 
+The replacement name, optional Desk title, public logo, favicon, sidebar color, logo size, email footer address and neutral Help-menu visibility are managed in **Whitelabel Setting**. The default brand is OneHash.
 
-Whitelabel Setting Page
-![image](https://user-images.githubusercontent.com/34086262/115605632-5e28ed00-a300-11eb-986d-5114ef128de3.png)
+Whitelabel intentionally does not rename Python packages, API routes, HTTP headers, database DocTypes, source code, license notices or browser developer-tool identifiers. User-authored website content, emails, print formats and business records are never text-rewritten.
 
-Custom Navbar Title
-![image](https://user-images.githubusercontent.com/34086262/115721516-bc56de00-a39b-11eb-94b3-787b0481fb60.png)
+The visible product surface is branded for guests, portal users, Desk users and System Managers. Internal identifiers can still be seen in browser developer tools, logs, API payloads and the legally required attribution page.
 
-Below are important settings in the Whitelabel setting page:
+## Requirements
 
-1. Ignore Onboard Whitelabel:
-   - If this setting value is true, then this app will not whitelabel onboarding steps and onboarding modules.
+- Frappe Framework `>=16,<17`
+- ERPNext `>=16,<17`
+- Python 3.14
+- Node.js 24 for asset builds
 
-2. Show help menu:
-   - By default, this app hides the help menu. This setting shows the help menu if the value of this setting is true.
+## Install
 
-3. Disable New Update Popup:
-   - If this setting value is true, then it will disable the new updates popup.
+```sh
+bench get-app git@github.com:sanskar-onehash/whitelabel.git --branch v-16
+bench --site your-site.local install-app whitelabel
+bench build --app whitelabel
+bench --site your-site.local migrate
+bench --site your-site.local clear-cache
+```
 
+When upgrading an existing v15 installation, switch the app to `v-16` after upgrading Frappe and ERPNext, then run the build and migrate commands above. Existing Whitelabel Setting values are retained. Obsolete v15 enforcement fields remain hidden for schema compatibility.
 
-## Installation Steps:
+Logo and favicon attachments must be public because they are displayed before login. Logo height and width accept values from 8 through 200 pixels.
 
-1. Clone the repository:
-   bench get-app https://github.com/bhavesh95863/whitelabel
+## Tests
 
-3. Install the app for a specific site:
-   bench --site sitename install-app whitelabel
+```sh
+bench --site test-site.local run-tests --app whitelabel
+bench build --app whitelabel
+bench --site test-site.local run-ui-tests whitelabel --headless --browser chrome --spec whitelabel/tests/ui_test_whitelabel.js
+```
 
-3. Migrate the database:
-   bench  --site site_name migrate
+Run the integration and UI suites after every Frappe or ERPNext v16 update. The UI suite checks visible text and links on login and Desk surfaces for upstream product branding.
 
-4. Restart the bench:
-   bench restart
+## Production
 
-5. Clear the cache:
-   bench clear-cache
-
-
-## Contributing
-Contributions to the whitelable module are welcome! If you have ideas for improvements or new features, feel free to submit a pull request or open an issue on our GitHub repository.
+Use a production WSGI server and reverse proxy rather than `bench start`. Keep developer mode and error tracebacks disabled so internal package names and stack traces are not shown on error pages.
 
 ## License
-This project is licensed under the MIT License.
 
-
+MIT. See [LICENSE](LICENSE).

@@ -1,15 +1,10 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-from . import __version__ as app_version
-
-
 app_name = "whitelabel"
-app_title = "Whitelabel"
-app_publisher = "Bhavesh Maheshwari"
-app_description = "OneHash Whitelabel"
+app_title = "OneHash"
+app_publisher = "OneHash"
+app_description = "OneHash Brand Settings"
 app_icon = "octicon octicon-file-directory"
 app_color = "grey"
-app_email = "maheshwaribhavesh95863@gmail.com"
+app_email = "support@onehash.ai"
 app_license = "MIT"
 app_logo_url = "/assets/whitelabel/images/whitelabel_logo.svg"
 
@@ -20,9 +15,8 @@ app_logo_url = "/assets/whitelabel/images/whitelabel_logo.svg"
 app_include_css = "whitelabel.bundle.css"
 app_include_js = "whitelabel.bundle.js"
 
-# include js, css files in header of web template
-web_include_css = "/assets/whitelabel/css/whitelabel_web.css"
-web_include_js = "whitelabel_web.bundle.js"
+# Website, login, email, and print branding is applied through supported
+# System/Website/Navbar settings rather than rewriting rendered content.
 
 # include js in page
 # page_js = {"page" : "public/js/file.js"}
@@ -41,18 +35,16 @@ web_include_js = "whitelabel_web.bundle.js"
 
 # website user home page (by Role)
 # role_home_page = {
-#	"Role": "home_page"
+# "Role": "home_page"
 # }
 
 # Website user home page (by function)
 # get_website_user_home_page = "whitelabel.utils.get_home_page"
 
 after_migrate = "whitelabel.api.whitelabel_patch"
-before_request = ["whitelabel.server.install_print_sanitizer"]
-after_request = ["whitelabel.server.sanitize_html_response"]
-before_job = ["whitelabel.server.install_print_sanitizer"]
-make_email_body_message = ["whitelabel.server.sanitize_email_message"]
-update_website_context = ["whitelabel.server.update_website_context"]
+after_install = "whitelabel.api.whitelabel_patch"
+update_website_context = ["whitelabel.api.update_website_context"]
+extend_bootinfo = ["whitelabel.api.extend_bootinfo"]
 
 # Generators
 # ----------
@@ -93,7 +85,7 @@ update_website_context = ["whitelabel.server.update_website_context"]
 # 		"on_update": "method",
 # 		"on_cancel": "method",
 # 		"on_trash": "method"
-#	}
+# }
 # }
 
 # Scheduled Tasks

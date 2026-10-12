@@ -10,15 +10,6 @@
 	object-fit: contain;
 }
 
-.whitelabel-hide-help .whitelabel-help-menu-item {
-	display: none !important;
-}
-
-.whitelabel-hidden-documentation-link,
-.whitelabel-hidden-standard-support {
-	display: none !important;
-}
-
 #changelog_feed,
 .panel-changelog-feed {
 	display: none !important;
