@@ -30,7 +30,15 @@
     "email_footer_section",
     "email_footer_address",
     "column_break_21",
-    "disable_standard_footer"
+    "disable_standard_footer",
+    "navigation_tab",
+    "enable_workspace_navigation",
+    "navigation_preferences",
+    "default_workspace",
+    "default_workspace_sidebar",
+    "route_root_to_workspace",
+    "allow_user_workspace_home",
+    "navigation_configuration"
   ],
   "fields": [
     {
@@ -171,6 +179,60 @@
       "fieldname": "general_settings_tab",
       "fieldtype": "Tab Break",
       "label": "General Settings"
+    },
+    {
+      "fieldname": "navigation_tab",
+      "label": "Navigation",
+      "fieldtype": "Tab Break"
+    },
+    {
+      "fieldname": "enable_workspace_navigation",
+      "label": "Enable Workspace Navigation",
+      "fieldtype": "Check",
+      "default": "0",
+      "description": "Consistent Home and workspace switching for System Users. Website Users keep native portal routing."
+    },
+    {
+      "fieldname": "navigation_preferences",
+      "label": "Workspace Navigation",
+      "fieldtype": "Section Break",
+      "depends_on": "enable_workspace_navigation"
+    },
+    {
+      "fieldname": "default_workspace",
+      "label": "Site Default Workspace",
+      "fieldtype": "Link",
+      "options": "Workspace",
+      "depends_on": "enable_workspace_navigation"
+    },
+    {
+      "fieldname": "default_workspace_sidebar",
+      "label": "Preferred Sidebar",
+      "fieldtype": "Link",
+      "options": "Workspace Sidebar",
+      "depends_on": "enable_workspace_navigation"
+    },
+    {
+      "fieldname": "route_root_to_workspace",
+      "label": "Use Site Root for Desk Login and Home",
+      "fieldtype": "Check",
+      "default": "0",
+      "depends_on": "enable_workspace_navigation",
+      "description": "At /, guests go to login and signed-in System Users go Home. Signed-in Website Users retain native website/portal routing. Leave off for a public website."
+    },
+    {
+      "fieldname": "allow_user_workspace_home",
+      "label": "Allow Users to Choose Their Home",
+      "fieldtype": "Check",
+      "default": "1",
+      "depends_on": "enable_workspace_navigation",
+      "description": "Allows System Users to set their own Default Workspace. Existing user defaults remain the first choice."
+    },
+    {
+      "fieldname": "navigation_configuration",
+      "label": "Configuration",
+      "fieldtype": "HTML",
+      "depends_on": "enable_workspace_navigation"
     }
   ],
   "issingle": 1,

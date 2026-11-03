@@ -1,3 +1,5 @@
+import "./navigation";
+
 frappe.provide("whitelabel");
 
 whitelabel.documentation_hosts = new Set([
@@ -150,6 +152,9 @@ whitelabel.install_known_translations = function () {
     "Frappe page builder using components": `${config.brand_name} page builder using components`,
     Whitelabel: `${config.brand_name} Settings`,
     "Whitelabel Setting": "Brand Settings",
+    "Whitelabel Workspace Rule": "Workspace Home Rule",
+    "Whitelabel Workspace Group": "Workspace Group",
+    "Whitelabel Workspace Group Item": "Workspace Group Item",
     "Whitelabel App Name": "Application Name",
     "Fiscal Year (requires ERPNext to be installed)": "Fiscal Year",
     "Company Abbreviation (requires ERPNext to be installed)":

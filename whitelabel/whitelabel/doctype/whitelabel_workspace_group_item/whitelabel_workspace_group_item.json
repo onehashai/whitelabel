@@ -1,0 +1,33 @@
+{
+  "doctype": "DocType",
+  "name": "Whitelabel Workspace Group Item",
+  "module": "Whitelabel",
+  "engine": "InnoDB",
+  "field_order": [
+    "workspace",
+    "sidebar"
+  ],
+  "fields": [
+    {
+      "fieldname": "workspace",
+      "label": "Workspace",
+      "fieldtype": "Link",
+      "options": "Workspace",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "sidebar",
+      "label": "Preferred Sidebar",
+      "fieldtype": "Link",
+      "options": "Workspace Sidebar",
+      "in_list_view": 1
+    }
+  ],
+  "permissions": [],
+  "track_changes": 1,
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "istable": 1,
+  "editable_grid": 1
+}

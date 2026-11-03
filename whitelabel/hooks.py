@@ -44,7 +44,10 @@ app_include_js = "whitelabel.bundle.js"
 after_migrate = "whitelabel.api.whitelabel_patch"
 after_install = "whitelabel.api.whitelabel_patch"
 update_website_context = ["whitelabel.api.update_website_context"]
-extend_bootinfo = ["whitelabel.api.extend_bootinfo"]
+extend_bootinfo = ["whitelabel.api.extend_bootinfo", "whitelabel.navigation.extend_bootinfo"]
+before_request = ["whitelabel.navigation.before_request"]
+after_request = ["whitelabel.navigation.after_request"]
+on_session_creation = ["whitelabel.navigation.on_session_creation"]
 
 # Generators
 # ----------

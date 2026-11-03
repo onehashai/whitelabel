@@ -1,0 +1,282 @@
+const ADMIN = Cypress.env("adminPassword") || "admin";
+const PASSWORD = "Navigation-test-Password1";
+const SYSTEM = "navigation-browser@example.test";
+const WEBSITE = "navigation-portal@example.test";
+const A = "Navigation Browser A";
+const B = "Navigation Browser B";
+const RESTRICTED = "Navigation Browser Restricted";
+const GROUP = "Navigation Browser Group";
+const routeA = "/desk/navigation-browser-a";
+const routeB = "/desk/navigation-browser-b";
+const configuration = [
+  "enable_workspace_navigation",
+  "route_root_to_workspace",
+  "allow_user_workspace_home",
+  "default_workspace",
+  "default_workspace_sidebar",
+];
+let originalSettings;
+
+function api(method, body, failOnStatusCode = true) {
+  return cy.window().then((window) =>
+    cy.request({
+      method: "POST",
+      url: `/api/method/${method}`,
+      body,
+      failOnStatusCode,
+      headers: window.frappe?.csrf_token
+        ? { "X-Frappe-CSRF-Token": window.frappe.csrf_token }
+        : {},
+    })
+  );
+}
+function insert(doc) {
+  return api("frappe.client.insert", { doc: JSON.stringify(doc) });
+}
+function update(doctype, name, values) {
+  return api("frappe.client.set_value", {
+    doctype,
+    name,
+    fieldname: JSON.stringify(values),
+  });
+}
+
+describe("Workspace navigation", () => {
+  before(() => {
+    cy.login("Administrator", ADMIN);
+    api("frappe.client.get", { doctype: "Whitelabel Setting" }).then(
+      ({ body }) => {
+        originalSettings = Object.fromEntries(
+          configuration.map((field) => [field, body.message[field]])
+        );
+      }
+    );
+    insert({
+      doctype: "Web Page",
+      name: "navigation-portal-test",
+      title: "Navigation Portal Test",
+      route: "navigation-portal-test",
+      published: 1,
+      content_type: "HTML",
+      main_section_html: "<p>Navigation portal destination</p>",
+    });
+    insert({
+      doctype: "Role",
+      role_name: "Navigation Browser User",
+      desk_access: 1,
+    });
+    insert({
+      doctype: "Role",
+      role_name: "Navigation Browser Portal",
+      desk_access: 0,
+      home_page: "/navigation-portal-test",
+    });
+    insert({
+      doctype: "User",
+      email: SYSTEM,
+      first_name: "Navigation Browser",
+      send_welcome_email: 0,
+      new_password: PASSWORD,
+      roles: [{ role: "Navigation Browser User" }],
+    });
+    insert({
+      doctype: "User",
+      email: WEBSITE,
+      first_name: "Navigation Portal",
+      send_welcome_email: 0,
+      new_password: PASSWORD,
+      roles: [{ role: "Navigation Browser Portal" }],
+    });
+    [A, B, RESTRICTED].forEach((name) =>
+      insert({
+        doctype: "Workspace",
+        label: name,
+        title: name,
+        module: "Core",
+        public: 1,
+        content: JSON.stringify([
+          {
+            id: "navtestheader",
+            type: "header",
+            data: { text: name, col: 12 },
+          },
+        ]),
+        roles: [
+          {
+            role:
+              name === RESTRICTED
+                ? "Navigation Browser Portal"
+                : "Navigation Browser User",
+          },
+        ],
+      })
+    );
+    insert({
+      doctype: "Whitelabel Workspace Group",
+      title: GROUP,
+      enabled: 1,
+      workspaces: [
+        { workspace: A },
+        { workspace: B },
+        { workspace: RESTRICTED },
+      ],
+    });
+    insert({
+      doctype: "Whitelabel Workspace Rule",
+      title: "Navigation Browser Rule",
+      enabled: 1,
+      applies_to: "Role",
+      role: "Navigation Browser User",
+      workspace: A,
+      priority: 10,
+    });
+    // Simulate an account converted from a System User to a Website User.
+    update("User", WEBSITE, { default_workspace: A, default_app: "frappe" });
+    update("Whitelabel Setting", "Whitelabel Setting", {
+      enable_workspace_navigation: 1,
+      route_root_to_workspace: 1,
+      allow_user_workspace_home: 1,
+      default_workspace: B,
+      default_workspace_sidebar: null,
+    });
+  });
+
+  after(() => {
+    cy.login("Administrator", ADMIN);
+    cy.visit("/desk/workspace-directory");
+    if (originalSettings)
+      update("Whitelabel Setting", "Whitelabel Setting", originalSettings);
+    [
+      ["Whitelabel Workspace Rule", "Navigation Browser Rule"],
+      ["Whitelabel Workspace Group", GROUP],
+      ["Workspace", A],
+      ["Workspace", B],
+      ["Workspace", RESTRICTED],
+      ["Web Page", "navigation-portal-test"],
+      ["User", SYSTEM],
+      ["User", WEBSITE],
+      ["Role", "Navigation Browser User"],
+      ["Role", "Navigation Browser Portal"],
+    ].forEach(([doctype, name]) => {
+      api("frappe.client.delete", { doctype, name }, false);
+    });
+  });
+
+  it("sends an implicit System User login, root, login page and desk to the same Home", () => {
+    cy.clearAllCookies();
+    api("login", { usr: SYSTEM, pwd: PASSWORD }).then(({ body }) => {
+      expect(body.home_page).to.contain(routeA);
+    });
+    ["/", "/login", "/desk"].forEach((path) => {
+      cy.visit(path);
+      cy.location("pathname").should("eq", routeA);
+      cy.get("#whitelabel-navigation").should("be.visible");
+    });
+  });
+
+  it("switches permitted workspaces and returns Home after opening a form", () => {
+    cy.login(SYSTEM, PASSWORD);
+    cy.visit(routeA);
+    cy.get(".whitelabel-switcher").click();
+    cy.get(".modal:visible").within(() => {
+      cy.contains(".whitelabel-workspace-group", GROUP).should("be.visible");
+      cy.contains(".whitelabel-workspace-link", B).click();
+    });
+    cy.location("pathname").should("eq", routeB);
+    cy.get(".whitelabel-home").click();
+    cy.location("pathname").should("eq", routeA);
+    cy.visit(`/desk/user/${SYSTEM}`);
+    cy.get(".whitelabel-home").should("be.visible").click();
+    cy.location("pathname").should("eq", routeA);
+    cy.reload();
+    cy.get(".whitelabel-home").should("be.visible");
+  });
+
+  it("filters workspace entries and remembers an explicitly chosen Home", () => {
+    cy.login(SYSTEM, PASSWORD);
+    cy.visit("/desk/workspace-directory");
+    cy.get(".whitelabel-workspace-link").should("not.contain.text", RESTRICTED);
+    cy.get("input[type=search]").type(B);
+    cy.get(".whitelabel-workspace-row")
+      .should("have.length", 1)
+      .within(() => {
+        cy.contains("button", "Set as my Home").click();
+      });
+    cy.get(".whitelabel-home").click();
+    cy.location("pathname").should("eq", routeB);
+    cy.visit("/");
+    cy.location("pathname").should("eq", routeB);
+  });
+
+  it("keeps an explicit desktop escape and works on mobile", () => {
+    cy.login(SYSTEM, PASSWORD);
+    cy.visit(routeB);
+    cy.viewport(390, 844);
+    cy.get(".whitelabel-home").should("be.visible");
+    cy.get(".whitelabel-switcher").should("be.visible").click();
+    cy.get(".modal:visible .whitelabel-workspace-link")
+      .first()
+      .should("be.visible");
+    cy.get(".modal:visible .btn-modal-close").click();
+    cy.get(".whitelabel-desktop-link").click();
+    cy.location("pathname").should("eq", "/desk/desktop");
+    cy.get(".whitelabel-home").click();
+    cy.location("pathname").should("eq", routeB);
+    cy.viewport(1400, 960);
+  });
+
+  it("preserves Website User portal login, root and explicit links", () => {
+    cy.clearAllCookies();
+    api("login", { usr: WEBSITE, pwd: PASSWORD }).then(({ body }) => {
+      expect(body.message).to.eq("No App");
+      expect(body.home_page).to.contain("navigation-portal-test");
+    });
+    cy.visit("/");
+    cy.contains("Navigation portal destination").should("be.visible");
+    cy.get("#whitelabel-navigation").should("not.exist");
+    api("whitelabel.navigation.get_context", {}).then(({ body }) => {
+      expect(body.message ?? null).to.be.null;
+    });
+    cy.request({ url: "/desk", failOnStatusCode: false })
+      .its("status")
+      .should("eq", 403);
+    cy.request({
+      method: "POST",
+      url: "/api/method/whitelabel.navigation.set_my_home",
+      body: { workspace: A },
+      failOnStatusCode: false,
+    })
+      .its("status")
+      .should("eq", 403);
+    cy.visit("/navigation-portal-test");
+    cy.get("#whitelabel-navigation").should("not.exist");
+  });
+
+  it("preserves explicit login destinations and restores native Desk when disabled", () => {
+    cy.clearAllCookies();
+    cy.visit(
+      `/login?redirect-to=${encodeURIComponent(`/desk/user/${SYSTEM}`)}`
+    );
+    cy.get("#login_email").type(SYSTEM);
+    cy.get("#login_password").type(PASSWORD, { log: false });
+    cy.get(".btn-login:visible").click();
+    cy.location("pathname").should("eq", `/desk/user/${SYSTEM}`);
+    cy.get(".whitelabel-home").should("be.visible");
+    cy.window().then(
+      (window) =>
+        new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
+    );
+    cy.login("Administrator", ADMIN);
+    cy.visit("/desk/workspace-directory");
+    cy.window().its("frappe.session.user").should("eq", "Administrator");
+    update("Whitelabel Setting", "Whitelabel Setting", {
+      enable_workspace_navigation: 0,
+    });
+    cy.request({ url: "/desk", followRedirect: false })
+      .its("status")
+      .should("eq", 200);
+    cy.visit(routeB);
+    cy.location("pathname").should("eq", routeB);
+    cy.get("#whitelabel-navigation").should("not.exist");
+  });
+});

@@ -1,0 +1,79 @@
+{
+  "doctype": "DocType",
+  "name": "Whitelabel Workspace Group",
+  "module": "Whitelabel",
+  "engine": "InnoDB",
+  "field_order": [
+    "title",
+    "enabled",
+    "icon",
+    "sequence",
+    "include_module",
+    "workspaces"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "label": "Title",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "enabled",
+      "label": "Enabled",
+      "fieldtype": "Check",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "icon",
+      "label": "Icon",
+      "fieldtype": "Icon"
+    },
+    {
+      "fieldname": "sequence",
+      "label": "Sequence",
+      "fieldtype": "Int",
+      "default": "100"
+    },
+    {
+      "fieldname": "include_module",
+      "label": "Include Workspaces From Module",
+      "fieldtype": "Link",
+      "options": "Module Def",
+      "description": "Adds permitted workspaces from this module after the explicitly ordered entries."
+    },
+    {
+      "fieldname": "workspaces",
+      "label": "Workspaces",
+      "fieldtype": "Table",
+      "options": "Whitelabel Workspace Group Item"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1
+    },
+    {
+      "role": "Workspace Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1
+    }
+  ],
+  "track_changes": 1,
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "autoname": "field:title",
+  "title_field": "title"
+}
