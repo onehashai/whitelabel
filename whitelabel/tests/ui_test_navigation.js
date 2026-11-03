@@ -50,7 +50,10 @@ function menuAction(label) {
     if (window.frappe.is_mobile()) window.frappe.app.sidebar.open();
     cy.get(".sidebar-header:visible").click();
   });
-  cy.contains(".frappe-menu:visible .menu-item-title", new RegExp(`^${label}$`)).click();
+  cy.contains(
+    ".frappe-menu:visible .menu-item-title",
+    new RegExp(`^${label}$`)
+  ).click();
 }
 
 describe("Workspace navigation", () => {
@@ -205,6 +208,97 @@ describe("Workspace navigation", () => {
     cy.get(".sidebar-header").should("exist");
   });
 
+  it("routes the native breadcrumb directly Home without a configuration request or intermediate render", () => {
+    cy.login(SYSTEM, PASSWORD);
+    cy.visit(`/desk/user/${SYSTEM}`);
+    cy.window().should((window) =>
+      expect(window.cur_frm?.doc.name).to.eq(SYSTEM)
+    );
+    cy.window().then(
+      (window) =>
+        new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
+    );
+    // A slow configuration service must not delay Home or allow Desktop to render.
+    cy.intercept(
+      "POST",
+      "/api/method/whitelabel.navigation.get_context",
+      (request) => {
+        request.on("response", (response) => response.setDelay(2500));
+      }
+    ).as("homeConfiguration");
+    const renders = [];
+    let expectedHome;
+    cy.window().then((window) => {
+      expectedHome = new URL(
+        window.frappe.boot.whitelabel_navigation.home_route,
+        window.location.origin
+      );
+      const render = window.frappe.router.render;
+      cy.stub(window.frappe.router, "render").callsFake(function (...args) {
+        renders.push(window.location.pathname);
+        return render.apply(this, args);
+      });
+      cy.spy(window.history, "pushState").as("homeHistory");
+    });
+    cy.get(".page-container:visible .navbar-breadcrumbs li:first-child a")
+      .should("have.attr", "href")
+      .and("contain", routeA);
+    cy.get(
+      ".page-container:visible .navbar-breadcrumbs li:first-child a"
+    ).click();
+    cy.location("pathname").should("eq", routeA);
+    cy.location("search").should((search) =>
+      expect(search).to.eq(expectedHome.search)
+    );
+    cy.get("@homeConfiguration.all").should("have.length", 0);
+    cy.get("@homeHistory").should((spy) => {
+      expect(spy.getCalls().map((call) => call.args[2])).to.deep.eq([
+        expectedHome.pathname + expectedHome.search,
+      ]);
+    });
+    cy.go("back");
+    cy.location("pathname").should("eq", `/desk/user/${SYSTEM}`);
+    cy.go("forward");
+    cy.location("pathname").should("eq", routeA);
+    cy.then(() =>
+      expect(renders).to.deep.eq([routeA, `/desk/user/${SYSTEM}`, routeA])
+    );
+    menuAction("Home");
+    cy.get("@homeHistory").should("have.been.calledOnce");
+    cy.get("@homeConfiguration.all").should("have.length", 0);
+  });
+
+  it("resolves programmatic Home and bare history entries before native rendering", () => {
+    cy.login(SYSTEM, PASSWORD);
+    cy.visit(`/desk/user/${SYSTEM}`);
+    cy.window().should((window) =>
+      expect(window.cur_frm?.doc.name).to.eq(SYSTEM)
+    );
+    const renders = [];
+    cy.window().then((window) => {
+      const render = window.frappe.router.render;
+      cy.stub(window.frappe.router, "render").callsFake(function (...args) {
+        renders.push(window.location.pathname);
+        return render.apply(this, args);
+      });
+      cy.spy(window.history, "pushState").as("programmaticHistory");
+      window.frappe.set_route();
+    });
+    cy.location("pathname").should("eq", routeA);
+    cy.get("@programmaticHistory").should((spy) => {
+      expect(spy.getCalls().map((call) => call.args[2])).not.to.include(
+        "/desk"
+      );
+    });
+    cy.wrap(renders).should("deep.equal", [routeA]);
+    cy.window().then((window) => {
+      window.history.pushState(null, "", "/desk");
+      window.dispatchEvent(new window.PopStateEvent("popstate"));
+    });
+    cy.location("pathname").should("eq", routeA);
+    cy.wrap(renders).should("deep.equal", [routeA, routeA]);
+  });
+
   it("filters workspace entries and remembers an explicitly chosen Home", () => {
     cy.login(SYSTEM, PASSWORD);
     cy.visit("/desk/workspace-directory");
@@ -217,6 +311,9 @@ describe("Workspace navigation", () => {
       });
     menuAction("Home");
     cy.location("pathname").should("eq", routeB);
+    cy.get(".page-container:visible .navbar-breadcrumbs li:first-child a")
+      .should("have.attr", "href")
+      .and("contain", routeB);
     cy.visit("/");
     cy.location("pathname").should("eq", routeB);
   });
@@ -240,7 +337,8 @@ describe("Workspace navigation", () => {
 
   it("keeps native form actions accessible without an extra bar on desktop and mobile", () => {
     cy.window().then(
-      (window) => new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
+      (window) =>
+        new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
     );
     cy.login("Administrator", ADMIN);
     cy.visit(`/desk/workspace/${encodeURIComponent(A)}`);
@@ -256,9 +354,13 @@ describe("Workspace navigation", () => {
           const button = $button[0];
           const window = button.ownerDocument.defaultView;
           const bounds = button.getBoundingClientRect();
-          expect(window.document.getElementById("whitelabel-navigation")).to.eq(null);
+          expect(window.document.getElementById("whitelabel-navigation")).to.eq(
+            null
+          );
           expect(bounds.top, "Save is inside the viewport").to.be.at.least(0);
-          expect(bounds.bottom, "Save is inside the viewport").to.be.at.most(window.innerHeight);
+          expect(bounds.bottom, "Save is inside the viewport").to.be.at.most(
+            window.innerHeight
+          );
           const target = window.document.elementFromPoint(
             bounds.x + bounds.width / 2,
             bounds.y + bounds.height / 2
@@ -286,7 +388,9 @@ describe("Workspace navigation", () => {
       cy.screenshot(`workspace-form-actions-${width}`, { capture: "viewport" });
     });
     cy.get(".page-container:visible .page-head .primary-action").click();
-    cy.window().should((window) => expect(window.cur_frm.is_dirty()).to.eq(false));
+    cy.window().should((window) =>
+      expect(window.cur_frm.is_dirty()).to.eq(false)
+    );
     cy.viewport(1400, 960);
   });
 
@@ -343,5 +447,8 @@ describe("Workspace navigation", () => {
     cy.visit(routeB);
     cy.location("pathname").should("eq", routeB);
     cy.get("#whitelabel-navigation").should("not.exist");
+    cy.get(
+      ".page-container:visible .navbar-breadcrumbs li:first-child a"
+    ).should("have.attr", "href", "/desk");
   });
 });

@@ -71,6 +71,8 @@ System Users get **Home**, **Workspaces**, **All Workspaces** and **All Apps** i
 
 Switching workspaces does not change the default. When **Allow Users to Choose Their Home** is enabled, **Set as my Home** updates the current user's native Default Workspace through a permission-checked API. It cannot modify another user. Existing user defaults continue to take precedence when personal home selection is disabled.
 
+The native breadcrumb Home icon and menu Home navigate directly to the destination supplied in boot data, including its configured sidebar. Home clicks do not request configuration or render the native desktop first. Programmatic `/desk` navigation and bare history entries resolve before page rendering. Configuration refreshes when opening the workspace switcher/directory, returning to a tab, or saving navigation-related documents; personal Home changes notify other tabs. Native workspace and document permissions still apply at the destination.
+
 **Whitelabel Workspace Group** gathers an explicitly ordered list and/or workspaces from a Module Def. Groups do not change workspace modules, app ownership or permissions. Users see only accessible entries, including their own private workspaces in **My Workspaces**. Workspaces outside configured groups are grouped by module. Access to cards, reports, charts and underlying records continues to use native permissions.
 
 Workspaces must already be accessible under native role, module and domain rules. An empty custom Module Def does not grant module access. For navigation-only grouping, keep workspaces in an accessible native module and collect them into a group with your chosen name. Users with native workspace creation permission can also create a personal workspace from the directory menu.

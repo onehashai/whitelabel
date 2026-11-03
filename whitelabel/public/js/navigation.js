@@ -3,30 +3,52 @@ frappe.provide("whitelabel.navigation");
 (() => {
   const navigation = whitelabel.navigation;
   const config = () => frappe.boot?.whitelabel_navigation;
+  const desk_url = (route) => {
+    const url = new URL(route, window.location.origin);
+    return url.origin === window.location.origin &&
+      url.pathname.startsWith("/desk/")
+      ? url
+      : null;
+  };
+  const home_url = () => config()?.enabled && desk_url(config().home_route);
 
   navigation.refresh = async () => {
-    const context = await frappe.xcall("whitelabel.navigation.get_context");
-    frappe.boot.whitelabel_navigation = context;
-    navigation.update();
-    return context;
+    if (!navigation.refreshing) {
+      navigation.refreshing = frappe
+        .xcall("whitelabel.navigation.get_context")
+        .then((context) => {
+          frappe.boot.whitelabel_navigation = context;
+          navigation.update();
+          return context;
+        })
+        .finally(() => {
+          navigation.refreshing = null;
+        });
+    }
+    return navigation.refreshing;
   };
 
   navigation.open = (route) => {
-    const url = new URL(route, window.location.origin);
+    const url = desk_url(route);
+    if (!url) return;
+    if (frappe.is_mobile()) frappe.app.sidebar?.close();
+    const target = url.pathname + url.search + url.hash;
     if (
-      url.origin !== window.location.origin ||
-      !url.pathname.startsWith("/desk/")
+      window.location.pathname +
+        window.location.search +
+        window.location.hash ===
+      target
     )
       return;
-    if (frappe.is_mobile()) frappe.app.sidebar?.close();
-    // v16 set_route treats a query inside a string as part of the page name.
+    // push_state takes a URL. set_route parses a query as part of the page name,
+    // and some v16 releases discard its separate query_params argument.
     frappe.route_options = Object.fromEntries(url.searchParams);
-    return frappe.set_route(url.pathname);
+    return frappe.router.push_state(target);
   };
 
-  navigation.home = async () => {
+  navigation.home = () => {
     if (navigation.saving_home) return;
-    const context = await navigation.refresh();
+    const context = config();
     if (context?.enabled) navigation.open(context.home_route);
   };
 
@@ -137,6 +159,11 @@ frappe.provide("whitelabel.navigation");
                   );
                   frappe.boot.whitelabel_navigation = context;
                   navigation.update();
+                  // Notify other tabs without putting a request on the Home click.
+                  localStorage.setItem(
+                    navigation.storage_key(),
+                    String(Date.now())
+                  );
                   render();
                   frappe.show_alert({
                     message: __("Home workspace updated"),
@@ -222,35 +249,115 @@ frappe.provide("whitelabel.navigation");
     // Remove the former top bar without changing Frappe's native page layout.
     $("#whitelabel-navigation").remove();
     document.body.classList.remove("whitelabel-navigation-enabled");
-  };
-
-  navigation.on_route_change = () => {
-    const context = config();
-    if (!context?.enabled) return;
-    const path = window.location.pathname.replace(/\/$/, "");
-    if (path === "/desk") {
-      navigation.refresh().then((latest) => {
+    const url = home_url();
+    $(".navbar-breadcrumbs li:first-child a")
+      .attr("href", url ? url.pathname + url.search : "/desk")
+      .off("click.whitelabel-home")
+      .on("click.whitelabel-home", (event) => {
         if (
-          !latest?.enabled ||
-          window.location.pathname.replace(/\/$/, "") !== "/desk"
+          !home_url() ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          event.altKey
         )
           return;
-        // Covers SPA Home actions too; replace the transient home route in history.
-        frappe.route_flags.replace_route = true;
-        navigation.open(latest.home_route);
+        event.preventDefault();
+        event.stopPropagation();
+        navigation.home();
       });
-      return;
-    }
-    navigation.update();
   };
 
+  navigation.install_routing = () => {
+    const router = frappe.router;
+    if (!router || router.__whitelabel_home) return;
+    router.__whitelabel_home = true;
+    const push_state = router.push_state;
+    router.push_state = function (path, ...args) {
+      const url = home_url();
+      // Resolve programmatic Home before Frappe writes history or renders Desk.
+      if (url && path.replace(/\/$/, "") === "/desk") {
+        frappe.route_options = Object.fromEntries(url.searchParams);
+        return push_state.call(this, url.pathname + url.search);
+      }
+      return push_state.call(this, path, ...args);
+    };
+    const route = router.route;
+    router.route = function (...args) {
+      const url = home_url();
+      // popstate and initial routing can enter without going through push_state.
+      if (url && window.location.pathname.replace(/\/$/, "") === "/desk") {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          url.pathname + url.search
+        );
+        frappe.route_options = Object.fromEntries(url.searchParams);
+      }
+      return route.apply(this, args);
+    };
+    const clear = frappe.breadcrumbs.clear;
+    frappe.breadcrumbs.clear = function (...args) {
+      const result = clear.apply(this, args);
+      navigation.update();
+      return result;
+    };
+  };
+
+  navigation.storage_key = () => `whitelabel-home:${frappe.session.user}`;
+  navigation.refresh_if_enabled = () => {
+    if (config()?.enabled && !document.hidden) {
+      navigation
+        .refresh()
+        .catch((error) =>
+          console.warn("Workspace navigation refresh failed", error)
+        );
+    }
+  };
   navigation.initialize = () => {
     if (navigation.initialized || !frappe.router || !frappe.boot) return;
     navigation.initialized = true;
-    frappe.router.on("change", navigation.on_route_change);
+    navigation.install_routing();
     $(document).on("page-change.whitelabel-navigation", navigation.update);
-    navigation.on_route_change();
+    $(window).on("focus.whitelabel-navigation", navigation.refresh_if_enabled);
+    $(document).on(
+      "visibilitychange.whitelabel-navigation",
+      navigation.refresh_if_enabled
+    );
+    $(window).on("storage.whitelabel-navigation", (event) => {
+      if (event.originalEvent.key === navigation.storage_key())
+        navigation.refresh_if_enabled();
+    });
+    $(document).on("save.whitelabel-navigation", (event, doc) => {
+      const affects_home =
+        [
+          "Whitelabel Setting",
+          "Whitelabel Workspace Rule",
+          "Whitelabel Workspace Group",
+          "Workspace",
+          "Workspace Sidebar",
+          "Role",
+          "Role Profile",
+        ].includes(doc.doctype) ||
+        (doc.doctype === "User" && doc.name === frappe.session.user);
+      if (
+        affects_home &&
+        (config()?.enabled || doc.doctype === "Whitelabel Setting")
+      ) {
+        navigation
+          .refresh()
+          .then(() => {
+            localStorage.setItem(navigation.storage_key(), String(Date.now()));
+          })
+          .catch((error) =>
+            console.warn("Workspace navigation refresh failed", error)
+          );
+      }
+    });
+    navigation.update();
   };
+  // Install before Application.startup makes its first routing decision.
+  navigation.install_routing();
   $(document).on("app_ready.whitelabel-navigation", navigation.initialize);
   if (frappe.app) navigation.initialize();
 })();
