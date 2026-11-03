@@ -112,6 +112,12 @@ whitelabel.patch_menu_renderer = function () {
   if (typeof make !== "function") return;
 
   Menu.prototype.make = function () {
+    if ($(this.opts?.parent).is(".sidebar-header, .desktop-avatar")) {
+      this.__whitelabel_native_items ||= this.menu_items;
+      this.menu_items = whitelabel.navigation.sidebar_menu_items(
+        this.__whitelabel_native_items
+      );
+    }
     this.menu_items = whitelabel.filter_menu_items(this.menu_items);
     return make.call(this);
   };

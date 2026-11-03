@@ -14,45 +14,6 @@
 .panel-changelog-feed {
   display: none !important;
 }
-body.whitelabel-navigation-enabled {
-  padding-top: 48px;
-}
-
-.whitelabel-navigation {
-  position: fixed;
-  inset: 0 0 auto 0;
-  height: 48px;
-  z-index: 1031;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 16px;
-  background: var(--navbar-bg, var(--fg-color));
-  border-bottom: 1px solid var(--border-color);
-}
-
-.whitelabel-navigation-enabled .body-sidebar-container .body-sidebar {
-  height: calc(100vh - 48px) !important;
-}
-
-.whitelabel-navigation-enabled .body-sidebar-placeholder,
-.whitelabel-navigation-enabled .body-sidebar-container .overlay {
-  height: calc(100vh - 48px) !important;
-}
-
-.whitelabel-navigation .whitelabel-switcher {
-  max-width: 45vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.whitelabel-directory-link {
-  margin-left: auto;
-}
-.whitelabel-navigation a {
-  font-size: var(--text-sm);
-}
 .whitelabel-workspace-directory {
   padding: 24px;
   max-width: 1000px;
@@ -82,16 +43,6 @@ body.whitelabel-navigation-enabled {
 }
 
 @media (max-width: 575px) {
-  .whitelabel-navigation {
-    padding-inline: 8px;
-    gap: 6px;
-  }
-  .whitelabel-navigation .whitelabel-switcher {
-    max-width: 36vw;
-  }
-  .whitelabel-navigation a {
-    font-size: 11px;
-  }
   .whitelabel-workspace-directory {
     padding: 12px;
   }

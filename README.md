@@ -67,7 +67,7 @@ Configure a **Site Default Workspace**, with an optional shared sidebar containi
 
 Lower numeric priorities win within a rule type; equal priorities sort by rule name. Inaccessible, hidden, deleted and non-workspace targets are skipped. A matching rule's preferred sidebar also applies to a user override selecting the same workspace. These rules take precedence over native Role Home Page, Default App and website redirects **for the entry points managed by this feature**. Other apps and explicit document/report/workspace destinations remain available.
 
-System Users get persistent **Home**, **Workspaces**, **All Workspaces** and **All Apps** controls throughout Desk. Home consistently resolves from `/desk`, an implicit successful login, and `/login` for an already signed-in System User. Root routing is separately configurable. Explicit login destinations and direct links are preserved; redirects to bare `/desk` resolve Home. **All Apps** opens `/desk/desktop` explicitly, bypassing Home routing. Setup Wizard behavior is preserved.
+System Users get **Home**, **Workspaces**, **All Workspaces** and **All Apps** in the existing sidebar header menu throughout Desk. **Workspaces** opens a searchable, permission-filtered switcher with workspace groups and personal Home selection. On All Apps, where Frappe hides the sidebar, the same controls appear in the profile menu. There is no additional top bar. Home consistently resolves from `/desk`, an implicit successful login, and `/login` for an already signed-in System User. Root routing is separately configurable. Explicit login destinations and direct links are preserved; redirects to bare `/desk` resolve Home. **All Apps** opens `/desk/desktop` explicitly, bypassing Home routing. Setup Wizard behavior is preserved.
 
 Switching workspaces does not change the default. When **Allow Users to Choose Their Home** is enabled, **Set as my Home** updates the current user's native Default Workspace through a permission-checked API. It cannot modify another user. Existing user defaults continue to take precedence when personal home selection is disabled.
 
@@ -85,6 +85,32 @@ Navigation regression tests:
 bench --site test-site.local run-tests --app whitelabel --module whitelabel.tests.test_navigation
 bench --site test-site.local run-ui-tests whitelabel --headless --browser chrome --spec whitelabel/tests/ui_test_navigation.js
 ```
+
+## Public workspace migration protection
+
+Some v16 releases remove site-created public workspaces during `bench migrate` when their App and Module are populated but no native workspace JSON exists. Whitelabel provides **Protect During Migration** on Workspace records, independently of whether Workspace Navigation is enabled.
+
+Mark existing site-managed public workspaces before the next migration. The field can be created through Customize Form before deploying this update: fieldname `custom_whitelabel_protect_migration`, type Check, default `0`, on Workspace. This lets the first migration of the updated app protect already-marked records. Whitelabel also installs the field through `before_migrate` and `after_install`. The checkbox is available on the native Workspace form; **Protected Workspaces** in Whitelabel Setting opens the marked records.
+
+New public workspaces created through normal site operations outside developer mode are protected automatically. Imports, patches, migration-created records and developer-mode workspaces retain their normal app-managed lifecycle. Existing workspaces are not automatically reclassified because an obsolete app workspace and a site-created workspace can have identical metadata. Administrators can opt out by unchecking the field on an existing record. Intentional deletion outside migration still uses normal permissions and link checks.
+
+Before migration, the app records the protected names and writes a private snapshot of the workspaces and their referenced Number Cards, Dashboard Charts and Custom HTML Blocks under `private/backups/whitelabel-workspaces/`. Snapshot files have mode `0600`. An unwritable snapshot or a protected name that now collides with app-shipped JSON aborts before patches/imports run. During migration, a Workspace class extension blocks deletion before the core `on_trash` controller and its side effects. Native orphan cleanup reports that deletion was skipped and continues with unprotected app entities. After migration, the app verifies preserved workspace content, role tables and widget references; unexpected changes fail verification and retain the snapshot for recovery. Nothing is silently restored or overwritten.
+
+On affected releases, native cleanup prints `Error occurred while deleting entity` followed by `Skipping migration deletion of protected workspace ...` for a blocked attempt. This is an expected skip; the final `Verified ... protected workspace(s)` message confirms that the records and widget content remained intact.
+
+This guard targets native document deletion during migration. Direct SQL deletion, `ignore_on_trash`, and schema reloads bypass document hooks; snapshots and verification help detect such changes, but are not a replacement for a full database backup. Server Scripts are deliberately not used: the framework skips document-event Server Scripts during migration. The protection code must be deployed before running the next migration; the checkbox alone cannot protect records on an older app version.
+
+Do not mark workspaces shipped by an installed app as site-managed. Their native workspace JSON belongs in source control. Standard app imports and intentional retirement of unprotected app records remain unchanged. Protection snapshots are private site data and can be retained/archived using the site's backup policy.
+
+Regression checks:
+
+```sh
+bench --site test_site run-tests --app whitelabel --module whitelabel.tests.test_workspace_protection
+# Full cleanup regression: disposable .test site, allow_tests enabled, developer_mode disabled.
+bench --site disposable.test execute whitelabel.tests.migration_workspace_roundtrip.run
+```
+
+The full regression executes two complete migrations and checks that protected public workspaces, their content and their referenced widgets remain intact, that they never appear in Deleted Document, and that an explicitly unprotected orphan is still removed.
 
 ## Production
 
