@@ -41,6 +41,18 @@ function update(doctype, name, values) {
   });
 }
 
+function menuAction(label) {
+  cy.window().then((window) => {
+    if (window.location.pathname === "/desk/desktop") {
+      cy.get(".desktop-avatar:visible").click();
+      return;
+    }
+    if (window.frappe.is_mobile()) window.frappe.app.sidebar.open();
+    cy.get(".sidebar-header:visible").click();
+  });
+  cy.contains(".frappe-menu:visible .menu-item-title", new RegExp(`^${label}$`)).click();
+}
+
 describe("Workspace navigation", () => {
   before(() => {
     cy.login("Administrator", ADMIN);
@@ -149,12 +161,12 @@ describe("Workspace navigation", () => {
     [
       ["Whitelabel Workspace Rule", "Navigation Browser Rule"],
       ["Whitelabel Workspace Group", GROUP],
+      ["User", SYSTEM],
+      ["User", WEBSITE],
       ["Workspace", A],
       ["Workspace", B],
       ["Workspace", RESTRICTED],
       ["Web Page", "navigation-portal-test"],
-      ["User", SYSTEM],
-      ["User", WEBSITE],
       ["Role", "Navigation Browser User"],
       ["Role", "Navigation Browser Portal"],
     ].forEach(([doctype, name]) => {
@@ -170,26 +182,27 @@ describe("Workspace navigation", () => {
     ["/", "/login", "/desk"].forEach((path) => {
       cy.visit(path);
       cy.location("pathname").should("eq", routeA);
-      cy.get("#whitelabel-navigation").should("be.visible");
+      cy.get(".sidebar-header").should("be.visible");
+      cy.get("#whitelabel-navigation").should("not.exist");
     });
   });
 
   it("switches permitted workspaces and returns Home after opening a form", () => {
     cy.login(SYSTEM, PASSWORD);
     cy.visit(routeA);
-    cy.get(".whitelabel-switcher").click();
+    menuAction("Workspaces");
     cy.get(".modal:visible").within(() => {
       cy.contains(".whitelabel-workspace-group", GROUP).should("be.visible");
       cy.contains(".whitelabel-workspace-link", B).click();
     });
     cy.location("pathname").should("eq", routeB);
-    cy.get(".whitelabel-home").click();
+    menuAction("Home");
     cy.location("pathname").should("eq", routeA);
     cy.visit(`/desk/user/${SYSTEM}`);
-    cy.get(".whitelabel-home").should("be.visible").click();
+    menuAction("Home");
     cy.location("pathname").should("eq", routeA);
     cy.reload();
-    cy.get(".whitelabel-home").should("be.visible");
+    cy.get(".sidebar-header").should("exist");
   });
 
   it("filters workspace entries and remembers an explicitly chosen Home", () => {
@@ -202,7 +215,7 @@ describe("Workspace navigation", () => {
       .within(() => {
         cy.contains("button", "Set as my Home").click();
       });
-    cy.get(".whitelabel-home").click();
+    menuAction("Home");
     cy.location("pathname").should("eq", routeB);
     cy.visit("/");
     cy.location("pathname").should("eq", routeB);
@@ -212,16 +225,68 @@ describe("Workspace navigation", () => {
     cy.login(SYSTEM, PASSWORD);
     cy.visit(routeB);
     cy.viewport(390, 844);
-    cy.get(".whitelabel-home").should("be.visible");
-    cy.get(".whitelabel-switcher").should("be.visible").click();
+    cy.get(".sidebar-header").should("exist");
+    menuAction("Workspaces");
     cy.get(".modal:visible .whitelabel-workspace-link")
       .first()
       .should("be.visible");
     cy.get(".modal:visible .btn-modal-close").click();
-    cy.get(".whitelabel-desktop-link").click();
+    menuAction("All Apps");
     cy.location("pathname").should("eq", "/desk/desktop");
-    cy.get(".whitelabel-home").click();
+    menuAction("Home");
     cy.location("pathname").should("eq", routeB);
+    cy.viewport(1400, 960);
+  });
+
+  it("keeps native form actions accessible without an extra bar on desktop and mobile", () => {
+    cy.window().then(
+      (window) => new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
+    );
+    cy.login("Administrator", ADMIN);
+    cy.visit(`/desk/workspace/${encodeURIComponent(A)}`);
+    cy.window().should((window) => {
+      expect(window.cur_frm?.doc.name).to.eq(A);
+    });
+    cy.window().then((window) => window.cur_frm.dirty());
+
+    function checkActions() {
+      cy.get(".page-container:visible .page-head .primary-action")
+        .should("be.visible")
+        .should(($button) => {
+          const button = $button[0];
+          const window = button.ownerDocument.defaultView;
+          const bounds = button.getBoundingClientRect();
+          expect(window.document.getElementById("whitelabel-navigation")).to.eq(null);
+          expect(bounds.top, "Save is inside the viewport").to.be.at.least(0);
+          expect(bounds.bottom, "Save is inside the viewport").to.be.at.most(window.innerHeight);
+          const target = window.document.elementFromPoint(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2
+          );
+          expect(button.contains(target), "Save receives clicks").to.eq(true);
+        });
+    }
+
+    [1400, 390].forEach((width) => {
+      cy.viewport(width, 844);
+      if (width < 992) {
+        // Resizing an expanded desktop sidebar opens the native mobile overlay.
+        cy.get(".body-sidebar-container .overlay:visible").click("right");
+      }
+      checkActions();
+      cy.window().then((window) => {
+        // Browser focus/scrollIntoView can scroll both the Desk and the document.
+        window.document.querySelector(".main-section").scrollTop = 500;
+        window.scrollTo(0, 500);
+      });
+      checkActions();
+      cy.get(".main-section").should(($section) => {
+        expect($section[0].getBoundingClientRect().bottom).to.be.at.most(844);
+      });
+      cy.screenshot(`workspace-form-actions-${width}`, { capture: "viewport" });
+    });
+    cy.get(".page-container:visible .page-head .primary-action").click();
+    cy.window().should((window) => expect(window.cur_frm.is_dirty()).to.eq(false));
     cy.viewport(1400, 960);
   });
 
@@ -261,7 +326,7 @@ describe("Workspace navigation", () => {
     cy.get("#login_password").type(PASSWORD, { log: false });
     cy.get(".btn-login:visible").click();
     cy.location("pathname").should("eq", `/desk/user/${SYSTEM}`);
-    cy.get(".whitelabel-home").should("be.visible");
+    cy.get(".sidebar-header").should("exist");
     cy.window().then(
       (window) =>
         new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))

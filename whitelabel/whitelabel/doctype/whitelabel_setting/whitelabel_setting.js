@@ -3,6 +3,9 @@
 
 frappe.ui.form.on("Whitelabel Setting", {
 	refresh(frm) {
+		frm.add_custom_button(__("Protected Workspaces"), () =>
+			frappe.set_route("List", "Workspace", { custom_whitelabel_protect_migration: 1 })
+		);
 		const wrapper = frm.fields_dict.navigation_configuration?.$wrapper;
 		if (!wrapper) return;
 		wrapper.empty();

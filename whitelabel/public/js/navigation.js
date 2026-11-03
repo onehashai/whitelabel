@@ -2,7 +2,6 @@ frappe.provide("whitelabel.navigation");
 
 (() => {
   const navigation = whitelabel.navigation;
-  const escape = (text) => frappe.utils.escape_html(String(text || ""));
   const config = () => frappe.boot?.whitelabel_navigation;
 
   navigation.refresh = async () => {
@@ -19,6 +18,7 @@ frappe.provide("whitelabel.navigation");
       !url.pathname.startsWith("/desk/")
     )
       return;
+    if (frappe.is_mobile()) frappe.app.sidebar?.close();
     // v16 set_route treats a query inside a string as part of the page name.
     frappe.route_options = Object.fromEntries(url.searchParams);
     return frappe.set_route(url.pathname);
@@ -130,7 +130,6 @@ frappe.provide("whitelabel.navigation");
                 if (navigation.saving_home) return;
                 navigation.saving_home = true;
                 const button = $(event.currentTarget).prop("disabled", true);
-                $("#whitelabel-navigation button").prop("disabled", true);
                 try {
                   context = await frappe.xcall(
                     "whitelabel.navigation.set_my_home",
@@ -145,7 +144,6 @@ frappe.provide("whitelabel.navigation");
                   });
                 } finally {
                   navigation.saving_home = false;
-                  $("#whitelabel-navigation button").prop("disabled", false);
                   button.prop("disabled", false);
                 }
               });
@@ -164,6 +162,7 @@ frappe.provide("whitelabel.navigation");
   };
 
   navigation.show_switcher = async () => {
+    if (frappe.is_mobile()) frappe.app.sidebar?.close();
     const context = await navigation.refresh();
     if (!context?.enabled) return;
     if (navigation.dialog) navigation.dialog.hide();
@@ -187,53 +186,42 @@ frappe.provide("whitelabel.navigation");
     search.trigger("focus");
   };
 
-  navigation.update = () => {
+  navigation.sidebar_menu_items = (items) => {
     const context = config();
-    if (!context?.enabled) {
-      $("#whitelabel-navigation").remove();
-      document.body.classList.remove("whitelabel-navigation-enabled");
-      return;
-    }
-    let bar = $("#whitelabel-navigation");
-    if (!bar.length) {
-      bar = $("<nav id='whitelabel-navigation' class='whitelabel-navigation'>")
-        .attr("aria-label", __("Workspace navigation"))
-        .prependTo(document.body);
-      $("<button type='button' class='btn btn-default btn-sm whitelabel-home'>")
-        .html(
-          `${frappe.utils.icon("home", "sm")} <span>${escape(
-            __("Home")
-          )}</span>`
-        )
-        .on("click", navigation.home)
-        .appendTo(bar);
-      $(
-        "<button type='button' class='btn btn-default btn-sm whitelabel-switcher'>"
-      )
-        .attr("aria-haspopup", "dialog")
-        .on("click", navigation.show_switcher)
-        .appendTo(bar);
-      $("<a class='whitelabel-directory-link'>")
-        .attr("href", context.directory_route)
-        .text(__("All Workspaces"))
-        .appendTo(bar);
-      $("<a class='whitelabel-desktop-link'>")
-        .attr("href", context.desktop_route)
-        .text(__("All Apps"))
-        .appendTo(bar);
-    }
-    document.body.classList.add("whitelabel-navigation-enabled");
-    const route = frappe.get_route?.() || [];
-    const workspace =
-      route[0] === "Workspaces"
-        ? context.workspaces.find((w) => w.name === route.at(-1))
-        : null;
-    bar
-      .find(".whitelabel-switcher")
-      .text(`${__(workspace?.title || "Workspaces")} ▾`);
-    bar
-      .find(".whitelabel-home")
-      .attr("title", context.home ? __(context.home.name) : __("Workspaces"));
+    if (!context?.enabled) return items;
+    return [
+      {
+        name: "whitelabel-home",
+        label: __("Home"),
+        icon: "home",
+        onClick: navigation.home,
+      },
+      {
+        name: "whitelabel-workspaces",
+        label: __("Workspaces"),
+        icon: "wallpaper",
+        onClick: navigation.show_switcher,
+      },
+      {
+        name: "whitelabel-directory",
+        label: __("All Workspaces"),
+        icon: "list",
+        onClick: () => navigation.open(config().directory_route),
+      },
+      {
+        name: "whitelabel-desktop",
+        label: __("All Apps"),
+        icon: "grid",
+        onClick: () => navigation.open(config().desktop_route),
+      },
+      ...items.filter((item) => !["desktop", "workspaces"].includes(item.name)),
+    ];
+  };
+
+  navigation.update = () => {
+    // Remove the former top bar without changing Frappe's native page layout.
+    $("#whitelabel-navigation").remove();
+    document.body.classList.remove("whitelabel-navigation-enabled");
   };
 
   navigation.on_route_change = () => {

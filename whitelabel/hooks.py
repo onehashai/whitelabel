@@ -41,8 +41,16 @@ app_include_js = "whitelabel.bundle.js"
 # Website user home page (by function)
 # get_website_user_home_page = "whitelabel.utils.get_home_page"
 
-after_migrate = "whitelabel.api.whitelabel_patch"
-after_install = "whitelabel.api.whitelabel_patch"
+after_migrate = ["whitelabel.api.whitelabel_patch", "whitelabel.workspace_protection.after_migrate"]
+before_migrate = ["whitelabel.workspace_protection.before_migrate"]
+after_install = ["whitelabel.api.whitelabel_patch", "whitelabel.workspace_protection.ensure_protection_field"]
+extend_doctype_class = {"Workspace": ["whitelabel.workspace_protection.ProtectedWorkspaceMixin"]}
+doc_events = {
+	"Workspace": {
+		"before_insert": "whitelabel.workspace_protection.mark_new_site_workspace",
+		"validate": "whitelabel.workspace_protection.validate_protection",
+	}
+}
 update_website_context = ["whitelabel.api.update_website_context"]
 extend_bootinfo = ["whitelabel.api.extend_bootinfo", "whitelabel.navigation.extend_bootinfo"]
 before_request = ["whitelabel.navigation.before_request"]
