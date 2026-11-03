@@ -1,0 +1,14 @@
+{
+  "doctype": "Page",
+  "name": "workspace-directory",
+  "page_name": "workspace-directory",
+  "module": "Whitelabel",
+  "title": "Workspaces",
+  "standard": "Yes",
+  "roles": [
+    {
+      "role": "Desk User"
+    }
+  ],
+  "system_page": 0
+}

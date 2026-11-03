@@ -19,6 +19,11 @@ class WhitelabelSetting(Document):
 	def validate(self):
 		self._validate_branding()
 		self._enforce_required_controls()
+		from whitelabel.navigation import validate_workspace
+
+		validate_workspace(
+			self.get("default_workspace"), self.get("default_workspace_sidebar"), public_only=True
+		)
 
 	def on_update(self):
 		self.apply_branding_settings()
