@@ -53,6 +53,18 @@ frappe.provide("whitelabel.navigation");
   };
 
   navigation.sections = (context, groupName) => {
+    if (context.classic) {
+      return [
+        {
+          title: __("Personal"),
+          items: context.workspaces.filter((item) => item.private),
+        },
+        {
+          title: __("Workspaces"),
+          items: context.workspaces.filter((item) => !item.private),
+        },
+      ];
+    }
     const byName = new Map(
       context.workspaces.map((workspace) => [workspace.name, workspace])
     );
@@ -241,7 +253,25 @@ frappe.provide("whitelabel.navigation");
         icon: "grid",
         onClick: () => navigation.open(config().desktop_route),
       },
-      ...items.filter((item) => !["desktop", "workspaces"].includes(item.name)),
+      ...(context.classic && context.can_manage_settings
+        ? [
+            {
+              name: "whitelabel-navigation-profiles",
+              label: __("Manage Navigation Profiles"),
+              icon: "settings",
+              onClick: () =>
+                frappe.set_route("List", "Whitelabel Navigation Profile"),
+            },
+          ]
+        : []),
+      ...items.filter(
+        (item) =>
+          ![
+            "desktop",
+            "workspaces",
+            ...(context.classic ? ["edit-sidebar"] : []),
+          ].includes(item.name)
+      ),
     ];
   };
 
@@ -249,6 +279,7 @@ frappe.provide("whitelabel.navigation");
     // Remove the former top bar without changing Frappe's native page layout.
     $("#whitelabel-navigation").remove();
     document.body.classList.remove("whitelabel-navigation-enabled");
+    whitelabel.classic?.update();
     const url = home_url();
     $(".navbar-breadcrumbs li:first-child a")
       .attr("href", url ? url.pathname + url.search : "/desk")
@@ -334,6 +365,7 @@ frappe.provide("whitelabel.navigation");
           "Whitelabel Setting",
           "Whitelabel Workspace Rule",
           "Whitelabel Workspace Group",
+          "Whitelabel Navigation Profile",
           "Workspace",
           "Workspace Sidebar",
           "Role",
@@ -344,8 +376,11 @@ frappe.provide("whitelabel.navigation");
         affects_home &&
         (config()?.enabled || doc.doctype === "Whitelabel Setting")
       ) {
-        navigation
-          .refresh()
+        const refresh =
+          doc.doctype === "Workspace" && config()?.classic
+            ? whitelabel.classic.refresh_workspaces
+            : navigation.refresh;
+        refresh()
           .then(() => {
             localStorage.setItem(navigation.storage_key(), String(Date.now()));
           })

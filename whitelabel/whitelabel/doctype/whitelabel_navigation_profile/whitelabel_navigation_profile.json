@@ -1,0 +1,87 @@
+{
+  "doctype": "DocType",
+  "name": "Whitelabel Navigation Profile",
+  "module": "Whitelabel",
+  "engine": "InnoDB",
+  "field_order": [
+    "title",
+    "enabled",
+    "priority",
+    "default_workspace",
+    "assignments_section",
+    "assignments",
+    "workspaces_section",
+    "workspaces"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "label": "Title",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "enabled",
+      "label": "Enabled",
+      "fieldtype": "Check",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "priority",
+      "label": "Priority",
+      "fieldtype": "Int",
+      "default": "100",
+      "description": "Lower numbers take precedence when combining profiles. Equal priorities sort by profile name."
+    },
+    {
+      "fieldname": "default_workspace",
+      "label": "Home Workspace",
+      "fieldtype": "Link",
+      "options": "Workspace",
+      "description": "Must be included below. Existing personal Home preferences take precedence."
+    },
+    {
+      "fieldname": "assignments_section",
+      "label": "Who Uses This Profile",
+      "fieldtype": "Section Break"
+    },
+    {
+      "fieldname": "assignments",
+      "label": "Assignments",
+      "fieldtype": "Table",
+      "options": "Whitelabel Navigation Assignment",
+      "description": "User assignments replace role-based profiles. Matching Role and Role Profile assignments combine."
+    },
+    {
+      "fieldname": "workspaces_section",
+      "label": "Workspace Tree",
+      "fieldtype": "Section Break"
+    },
+    {
+      "fieldname": "workspaces",
+      "label": "Workspaces",
+      "fieldtype": "Table",
+      "options": "Whitelabel Navigation Item",
+      "reqd": 1,
+      "description": "Rows define display order. Only these shared workspaces appear; permissions still apply."
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1
+    }
+  ],
+  "track_changes": 1,
+  "autoname": "field:title",
+  "title_field": "title",
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

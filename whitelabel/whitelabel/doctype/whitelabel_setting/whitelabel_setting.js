@@ -10,6 +10,7 @@ frappe.ui.form.on("Whitelabel Setting", {
 		if (!wrapper) return;
 		wrapper.empty();
 		[
+			[__("Navigation Profiles"), "List", "Whitelabel Navigation Profile"],
 			[__("Workspace Rules"), "List", "Whitelabel Workspace Rule"],
 			[__("Workspace Groups"), "List", "Whitelabel Workspace Group"],
 			[__("Workspaces"), "List", "Workspace"],

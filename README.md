@@ -21,9 +21,11 @@ The visible product surface is branded for guests, portal users, Desk users and 
 ## Requirements
 
 - Frappe Framework `>=16,<17`
-- ERPNext `>=16,<17`
+- ERPNext `>=16,<17`, if installed (optional)
 - Python 3.14
 - Node.js 24 for asset builds
+
+Workspace navigation is site- and industry-independent. It uses the site's existing workspaces, roles, Role Profiles and users, including workspaces supplied by other installed apps. No Kairos configuration or business-specific workspace definitions are installed. The regression site runs Frappe and Whitelabel without ERPNext.
 
 ## Install
 
@@ -86,6 +88,35 @@ Navigation regression tests:
 ```sh
 bench --site test-site.local run-tests --app whitelabel --module whitelabel.tests.test_navigation
 bench --site test-site.local run-ui-tests whitelabel --headless --browser chrome --spec whitelabel/tests/ui_test_navigation.js
+```
+
+## Classic workspace navigation
+
+Classic mode keeps a curated workspace tree in the existing Desk sidebar and opens real v16 workspaces on the right. The same tree remains available on forms, lists and reports. Workspace names navigate; separate arrow buttons expand children. Search reveals matching descendants and their parents. Expanded branches are remembered for each user in the browser. Home uses the existing direct routing, without showing the native desktop first.
+
+Deploy and configure in this order:
+
+1. Pull the app, run `bench --site your-site.local migrate`, and run `bench build --app whitelabel`.
+2. Open **Whitelabel Setting → Navigation → Navigation Profiles**. Create a profile and add only the shared workspaces the person needs. Rows define display order; leave **Parent Workspace** empty for a main workspace, or select another row to nest it. Any workspace can have children. Optional labels and icons change navigation presentation only.
+3. Add **Assignments** for Roles, Role Profiles or individual System Users. Set the profile's **Home Workspace**, if required. Create an administrator profile too if administrators should have a curated business view.
+4. Enable Workspace Navigation and select **Desk Layout → Classic**. Optionally set a **Default Navigation Profile** for users without a matching assignment. Save and reload Desk.
+
+Profiles assigned directly to a User replace that user's role-based profiles. Otherwise matching Role Profile and Role assignments combine. Role Profile assignments take precedence over Role assignments; lower priorities win within each level, then profile name breaks ties. A workspace appears once, with the first matching profile determining its placement and display label. Empty or disabled profiles do not broaden access. Unassigned users without a default profile see “No workspaces assigned” and any enabled personal workspaces, rather than an automatic list of modules.
+
+In Classic mode, the personal Home preference, matching Home rules/profile defaults, and site default are considered only if their destination is in the curated tree. Profile defaults participate at their assignment level. If no configured Home is available, the first visible workspace opens; an empty tree opens the workspace directory. A user cannot select an unlisted shared workspace as their personal Home through this feature.
+
+**Show Personal Workspaces** adds only the user's own private workspaces. **New Workspace** creates a private workspace through native permissions and immediately adds it to Personal, without requiring a reload. It can be nested under another personal workspace. Use the native workspace Edit menu to add charts, cards, links and custom blocks. Shared workspace creation and editing retain native Workspace Manager requirements. System Managers organise shared navigation through profiles; the sidebar and header menu include the management link.
+
+All configured entries pass native workspace role, module, domain, visibility and ownership checks. An accessible child of an inaccessible parent remains reachable without displaying the restricted parent. Profiles control presentation and do not grant access: permitted direct document/report links and global search remain available. No Accounting, Stock, Setup or other module is automatically added. Website Users retain their portal and website routing.
+
+Existing workspace records, chart definitions and layouts are reused. Classic mode does not import v15 business dashboards or create replacement standard workspaces. Site-specific v15 content must be restored or built in the native workspace editor; adding its workspace to a profile makes it part of the tree. Existing Workspace Groups remain available for Standard navigation, while Classic navigation is defined by profiles.
+
+Selecting **Desk Layout → Standard** restores the native sidebar. Disabling Workspace Navigation restores native routing too. Both retain profiles, workspace content and personal Home preferences. No core files are edited; the sidebar adapter is scoped to Classic mode and should be checked when upgrading v16.
+
+Additional browser regression:
+
+```sh
+bench --site test-site.local run-ui-tests whitelabel --headless --browser chrome --spec whitelabel/tests/ui_test_classic_workspace.js
 ```
 
 ## Public workspace migration protection

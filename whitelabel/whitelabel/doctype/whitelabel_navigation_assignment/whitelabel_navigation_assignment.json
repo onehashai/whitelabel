@@ -1,0 +1,51 @@
+{
+  "doctype": "DocType",
+  "name": "Whitelabel Navigation Assignment",
+  "module": "Whitelabel",
+  "engine": "InnoDB",
+  "field_order": [
+    "applies_to",
+    "role",
+    "role_profile",
+    "user"
+  ],
+  "fields": [
+    {
+      "fieldname": "applies_to",
+      "label": "Applies To",
+      "fieldtype": "Select",
+      "options": "Role\nRole Profile\nUser",
+      "default": "Role",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "role",
+      "label": "Role",
+      "fieldtype": "Link",
+      "options": "Role",
+      "depends_on": "eval:doc.applies_to == \"Role\"",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "role_profile",
+      "label": "Role Profile",
+      "fieldtype": "Link",
+      "options": "Role Profile",
+      "depends_on": "eval:doc.applies_to == \"Role Profile\"",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "user",
+      "label": "User",
+      "fieldtype": "Link",
+      "options": "User",
+      "depends_on": "eval:doc.applies_to == \"User\"",
+      "in_list_view": 1
+    }
+  ],
+  "permissions": [],
+  "track_changes": 1,
+  "istable": 1,
+  "editable_grid": 1
+}

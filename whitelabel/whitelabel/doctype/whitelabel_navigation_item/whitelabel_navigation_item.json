@@ -1,0 +1,45 @@
+{
+  "doctype": "DocType",
+  "name": "Whitelabel Navigation Item",
+  "module": "Whitelabel",
+  "engine": "InnoDB",
+  "field_order": [
+    "workspace",
+    "parent_workspace",
+    "label",
+    "icon"
+  ],
+  "fields": [
+    {
+      "fieldname": "workspace",
+      "label": "Workspace",
+      "fieldtype": "Link",
+      "options": "Workspace",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "parent_workspace",
+      "label": "Parent Workspace",
+      "fieldtype": "Link",
+      "options": "Workspace",
+      "in_list_view": 1,
+      "description": "Leave empty for a main workspace. The parent must be another row in this profile."
+    },
+    {
+      "fieldname": "label",
+      "label": "Display Label",
+      "fieldtype": "Data",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "icon",
+      "label": "Icon",
+      "fieldtype": "Icon"
+    }
+  ],
+  "permissions": [],
+  "track_changes": 1,
+  "istable": 1,
+  "editable_grid": 1
+}

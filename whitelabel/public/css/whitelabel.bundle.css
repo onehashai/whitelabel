@@ -42,6 +42,98 @@
   overflow-y: auto;
 }
 
+.whitelabel-classic-tree .whitelabel-tree-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.whitelabel-classic-tree .whitelabel-tree-search {
+  margin-bottom: 14px;
+}
+.whitelabel-tree-heading {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  padding: 8px 6px;
+}
+.whitelabel-tree-section {
+  margin-bottom: 14px;
+}
+.whitelabel-classic-tree .whitelabel-tree-row {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  min-height: 34px;
+}
+.whitelabel-classic-tree .whitelabel-tree-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 6px;
+  color: var(--text-color);
+  text-decoration: none;
+}
+.whitelabel-tree-link .sidebar-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.whitelabel-tree-link:focus-visible,
+.whitelabel-tree-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 5px;
+}
+.whitelabel-tree-toggle {
+  padding: 7px 6px;
+  flex: none;
+  color: var(--text-muted);
+}
+.whitelabel-tree-children {
+  margin-inline-start: 12px;
+  padding-inline-start: 4px;
+  border-inline-start: 1px solid var(--border-color);
+}
+.whitelabel-tree-empty {
+  padding: 8px 6px;
+}
+.whitelabel-tree-manage {
+  margin: 8px 0;
+  white-space: normal;
+}
+.whitelabel-classic .body-sidebar .onboarding-sidebar,
+.whitelabel-classic .body-sidebar .promotional-banners,
+.whitelabel-classic .body-sidebar .body-sidebar-cards,
+.whitelabel-classic .body-sidebar .edit-mode {
+  display: none !important;
+}
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-controls,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-search,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-heading,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-children,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-toggle,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-manage,
+.whitelabel-classic
+  .body-sidebar-container:not(.expanded)
+  .whitelabel-tree-empty {
+  display: none;
+}
+
 @media (max-width: 575px) {
   .whitelabel-workspace-directory {
     padding: 12px;

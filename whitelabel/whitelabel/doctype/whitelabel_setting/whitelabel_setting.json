@@ -34,6 +34,9 @@
     "navigation_tab",
     "enable_workspace_navigation",
     "navigation_preferences",
+    "desk_layout",
+    "default_navigation_profile",
+    "show_personal_workspaces",
     "default_workspace",
     "default_workspace_sidebar",
     "route_root_to_workspace",
@@ -233,6 +236,31 @@
       "label": "Configuration",
       "fieldtype": "HTML",
       "depends_on": "enable_workspace_navigation"
+    },
+    {
+      "fieldname": "desk_layout",
+      "label": "Desk Layout",
+      "fieldtype": "Select",
+      "options": "Standard\nClassic",
+      "default": "Standard",
+      "depends_on": "enable_workspace_navigation",
+      "description": "Classic shows a persistent workspace tree defined by Navigation Profiles."
+    },
+    {
+      "fieldname": "default_navigation_profile",
+      "label": "Default Navigation Profile",
+      "fieldtype": "Link",
+      "options": "Whitelabel Navigation Profile",
+      "depends_on": "eval:doc.enable_workspace_navigation && doc.desk_layout == \"Classic\"",
+      "description": "Used only when no enabled profile is assigned to this user or their roles. No modules are added automatically."
+    },
+    {
+      "fieldname": "show_personal_workspaces",
+      "label": "Show Personal Workspaces",
+      "fieldtype": "Check",
+      "default": "1",
+      "depends_on": "eval:doc.enable_workspace_navigation && doc.desk_layout == \"Classic\"",
+      "description": "Adds the current user's own private workspaces to their Personal section."
     }
   ],
   "issingle": 1,

@@ -1,4 +1,5 @@
 import "./navigation";
+import "./classic_workspace";
 
 frappe.provide("whitelabel");
 
@@ -161,6 +162,9 @@ whitelabel.install_known_translations = function () {
     "Whitelabel Workspace Rule": "Workspace Home Rule",
     "Whitelabel Workspace Group": "Workspace Group",
     "Whitelabel Workspace Group Item": "Workspace Group Item",
+    "Whitelabel Navigation Profile": "Navigation Profile",
+    "Whitelabel Navigation Item": "Navigation Workspace",
+    "Whitelabel Navigation Assignment": "Navigation Assignment",
     "Whitelabel App Name": "Application Name",
     "Fiscal Year (requires ERPNext to be installed)": "Fiscal Year",
     "Company Abbreviation (requires ERPNext to be installed)":

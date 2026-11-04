@@ -9,6 +9,7 @@ from whitelabel import workspace_protection as protection
 NAMES = ("_WL Migration Protected A", "_WL Migration Protected B", "_WL Migration Opted Out")
 CARD = "_WL Migration Card"
 BLOCK = "_WL Migration Block"
+PROFILE = "_WL Migration Navigation Profile"
 
 
 def _connect(site):
@@ -25,6 +26,8 @@ def run():
 		raise RuntimeError("Disable developer_mode to avoid exporting regression fixtures into app source.")
 	frappe.set_user("Administrator")
 	protection.ensure_protection_field()
+	if frappe.db.exists("Whitelabel Navigation Profile", PROFILE):
+		frappe.delete_doc("Whitelabel Navigation Profile", PROFILE)
 	for name in NAMES:
 		if frappe.db.exists("Workspace", name):
 			frappe.delete_doc("Workspace", name, force=True)
@@ -73,6 +76,17 @@ def run():
 	opted_out = frappe.get_doc("Workspace", NAMES[2])
 	opted_out.set(protection.PROTECTION_FIELD, 0)
 	opted_out.save()
+	profile = frappe.get_doc(
+		{
+			"doctype": "Whitelabel Navigation Profile",
+			"title": PROFILE,
+			"enabled": 1,
+			"default_workspace": NAMES[0],
+			"assignments": [{"applies_to": "Role", "role": "Desk User"}],
+			"workspaces": [{"workspace": NAMES[0]}, {"workspace": NAMES[1], "parent_workspace": NAMES[0]}],
+		}
+	).insert()
+	profile_snapshot = profile.as_dict()
 	frappe.db.commit()
 	baseline_deletions = {
 		name: frappe.db.count("Deleted Document", {"deleted_doctype": "Workspace", "deleted_name": name})
@@ -92,6 +106,10 @@ def run():
 			SiteMigration(skip_search_index=True).run(site=site)
 			_connect(site)
 			protection.verify_snapshot(snapshot)
+			profile_after = frappe.get_doc("Whitelabel Navigation Profile", PROFILE).as_dict()
+			assert not protection._changed_fields(profile_snapshot, profile_after), (
+				"Navigation Profile changed during migration"
+			)
 			assert not frappe.db.exists("Workspace", NAMES[2]), "Unprotected orphan cleanup did not run"
 			for name in NAMES[:2]:
 				assert (
@@ -107,6 +125,8 @@ def run():
 		if not getattr(frappe.local, "site", None):
 			_connect(site)
 		frappe.flags.in_migrate = False
+		if frappe.db.exists("Whitelabel Navigation Profile", PROFILE):
+			frappe.delete_doc("Whitelabel Navigation Profile", PROFILE)
 		for name in NAMES:
 			if frappe.db.exists("Workspace", name):
 				frappe.delete_doc("Workspace", name, force=True)

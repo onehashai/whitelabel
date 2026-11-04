@@ -178,12 +178,41 @@ def build_context(pages=None, sidebars=None):
 	if not settings or not is_system_user() or not frappe.is_setup_complete():
 		return None
 	workspaces = _available_workspaces(pages)
-	sidebars = _available_sidebars(workspaces, sidebars)
+	classic = settings.get("desk_layout") == "Classic"
+	tree, profile_homes, profiles = [], [], []
+	if classic:
+		from whitelabel.classic_navigation import curate
+
+		workspaces, tree, profile_homes, profiles = curate(workspaces, settings)
+		sidebars = {}
+	else:
+		sidebars = _available_sidebars(workspaces, sidebars)
 	rules = _rules_for_user()
 	default = frappe.get_cached_value("User", frappe.session.user, "default_workspace")
 	candidates = [(default, None)]
-	candidates.extend((rule.workspace, rule.sidebar) for rule in rules)
+	if classic:
+		choices = [
+			(rank, priority, name, workspace, None) for rank, priority, name, workspace in profile_homes
+		]
+		choices.extend(
+			(
+				1 if rule.applies_to == "Role Profile" else 2,
+				cint(rule.priority),
+				rule.name,
+				rule.workspace,
+				rule.sidebar,
+			)
+			for rule in rules
+		)
+		candidates.extend(
+			(workspace, sidebar)
+			for _, _, _, workspace, sidebar in sorted(choices, key=lambda choice: choice[:3])
+		)
+	else:
+		candidates.extend((rule.workspace, rule.sidebar) for rule in rules)
 	candidates.append((settings.get("default_workspace"), settings.get("default_workspace_sidebar")))
+	if classic:
+		candidates.extend((name, None) for name in workspaces)
 	home = None
 	for name, preferred in candidates:
 		if name in workspaces:
@@ -210,6 +239,9 @@ def build_context(pages=None, sidebars=None):
 	]
 	return dict(
 		enabled=True,
+		classic=classic,
+		tree=[{**node, "route": _workspace_url(workspaces[node["name"]])} for node in tree],
+		navigation_profiles=profiles,
 		home=home,
 		home_route=home["route"] if home else DIRECTORY_ROUTE,
 		directory_route=DIRECTORY_ROUTE,
@@ -218,8 +250,9 @@ def build_context(pages=None, sidebars=None):
 		can_manage=bool(set(frappe.get_roles()) & {"System Manager", "Workspace Manager"}),
 		can_manage_settings="System Manager" in frappe.get_roles(),
 		can_create_workspace=frappe.has_permission("Workspace", "create"),
+		allow_personal_workspaces=bool(cint(settings.get("show_personal_workspaces"))),
 		workspaces=items,
-		groups=_groups(workspaces, sidebars),
+		groups=[] if classic else _groups(workspaces, sidebars),
 	)
 
 

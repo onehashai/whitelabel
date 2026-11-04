@@ -102,6 +102,191 @@ class TestWorkspaceNavigation(IntegrationTestCase):
 	def as_system(self):
 		frappe.set_user("wl-nav-system@example.test")
 
+	def profile(self, title, workspaces, assignments=None, **values):
+		return frappe.get_doc(
+			{
+				"doctype": "Whitelabel Navigation Profile",
+				"title": title,
+				"enabled": 1,
+				"assignments": assignments or [{"applies_to": "Role", "role": "_WL Nav A"}],
+				"workspaces": [{"workspace": item} if isinstance(item, str) else item for item in workspaces],
+				**values,
+			}
+		).insert()
+
+	def classic(self):
+		self.settings.desk_layout = "Classic"
+		self.settings.show_personal_workspaces = 1
+		self.settings.save()
+
+	def test_classic_combines_profiles_and_excludes_unlisted_workspaces(self):
+		self.classic()
+		self.profile("_WL Profile One", ["_WL Nav A"], default_workspace="_WL Nav A")
+		self.profile(
+			"_WL Profile Two",
+			["_WL Nav A", "_WL Nav B"],
+			assignments=[{"applies_to": "Role", "role": "_WL Nav B"}],
+		)
+		self.as_system()
+		context = navigation.build_context()
+		self.assertTrue(context["classic"])
+		self.assertEqual([node["name"] for node in context["tree"]], ["_WL Nav A", "_WL Nav B"])
+		self.assertEqual(context["home"]["name"], "_WL Nav A")
+		self.assertEqual(context["groups"], [])
+		self.assertNotIn("sidebar=", context["home_route"])
+		self.assertEqual(navigation.set_my_home("_WL Nav B")["home"]["name"], "_WL Nav B")
+
+	def test_classic_user_assignment_replaces_role_view(self):
+		self.classic()
+		self.profile("_WL Role Profile", ["_WL Nav A"])
+		self.profile(
+			"_WL User Profile",
+			["_WL Nav B"],
+			assignments=[{"applies_to": "User", "user": "wl-nav-system@example.test"}],
+		)
+		self.as_system()
+		self.assertEqual([w["name"] for w in navigation.build_context()["workspaces"]], ["_WL Nav B"])
+
+	def test_classic_default_profile_and_empty_assignment(self):
+		self.classic()
+		self.as_system()
+		self.assertEqual(navigation.build_context()["tree"], [])
+		self.assertEqual(navigation.build_context()["home_route"], navigation.DIRECTORY_ROUTE)
+		frappe.set_user("Administrator")
+		profile = self.profile(
+			"_WL Default Profile",
+			["_WL Nav A"],
+			assignments=[{"applies_to": "Role", "role": "_WL Nav Portal"}],
+		)
+		self.settings.default_navigation_profile = profile.name
+		self.settings.save()
+		self.as_system()
+		self.assertEqual(navigation.build_context()["home"]["name"], "_WL Nav A")
+
+	def test_classic_promotes_allowed_children_without_exposing_parent(self):
+		self.classic()
+		self.profile(
+			"_WL Filtered Tree",
+			["_WL Nav Restricted", {"workspace": "_WL Nav A", "parent_workspace": "_WL Nav Restricted"}],
+		)
+		self.as_system()
+		tree = navigation.build_context()["tree"]
+		self.assertEqual(len(tree), 1)
+		self.assertEqual(tree[0]["name"], "_WL Nav A")
+		self.assertIsNone(tree[0]["parent"])
+
+	def test_classic_profile_tree_validation(self):
+		self.classic()
+		with self.assertRaises(frappe.ValidationError):
+			self.profile(
+				"_WL Cycle",
+				[
+					{"workspace": "_WL Nav A", "parent_workspace": "_WL Nav B"},
+					{"workspace": "_WL Nav B", "parent_workspace": "_WL Nav A"},
+				],
+			)
+		with self.assertRaises(frappe.ValidationError):
+			self.profile("_WL Missing Parent", [{"workspace": "_WL Nav A", "parent_workspace": "_WL Nav B"}])
+		with self.assertRaises(frappe.ValidationError):
+			self.profile("_WL Duplicate", ["_WL Nav A", "_WL Nav A"])
+		with self.assertRaises(frappe.ValidationError):
+			self.profile("_WL Wrong Home", ["_WL Nav A"], default_workspace="_WL Nav B")
+		with self.assertRaises(frappe.ValidationError):
+			self.profile(
+				"_WL Portal Profile",
+				["_WL Nav A"],
+				assignments=[{"applies_to": "User", "user": "wl-nav-portal@example.test"}],
+			)
+
+	def test_classic_higher_priority_parent_placement_wins(self):
+		self.classic()
+		self.profile(
+			"_WL Tree One", [{"workspace": "_WL Nav A", "parent_workspace": "_WL Nav B"}, "_WL Nav B"]
+		)
+		self.profile(
+			"_WL Tree Two",
+			["_WL Nav A", {"workspace": "_WL Nav B", "parent_workspace": "_WL Nav A"}],
+			priority=200,
+		)
+		self.as_system()
+		tree = navigation.build_context()["tree"]
+		self.assertEqual(len(tree), 2)
+		self.assertEqual(tree[1]["parent"], None)
+
+	def test_classic_personal_home_and_outside_profile_home(self):
+		self.classic()
+		self.profile("_WL Focused Profile", ["_WL Nav A"])
+		self.as_system()
+		with self.assertRaises(frappe.PermissionError):
+			navigation.set_my_home("_WL Nav B")
+		frappe.set_user("Administrator")
+		private = frappe.get_doc(
+			{
+				"doctype": "Workspace",
+				"label": "_WL Classic Private",
+				"title": "_WL Classic Private",
+				"module": "Core",
+				"public": 0,
+				"for_user": "wl-nav-system@example.test",
+				"content": "[]",
+			}
+		).insert()
+		self.as_system()
+		self.assertIn(private.name, [w["name"] for w in navigation.build_context()["tree"]])
+		context = navigation.set_my_home(private.name)
+		self.assertEqual(context["home"]["name"], private.name)
+		frappe.set_user("wl-nav-other@example.test")
+		self.assertNotIn(private.name, [w["name"] for w in navigation.build_context()["tree"]])
+
+	def test_classic_visibility_does_not_grant_permissions(self):
+		self.classic()
+		self.profile("_WL Restricted Profile", ["_WL Nav Restricted"])
+		self.as_system()
+		self.assertEqual(navigation.build_context()["workspaces"], [])
+		frappe.set_user("wl-nav-portal@example.test")
+		self.assertIsNone(navigation.build_context())
+
+	def test_classic_role_profile_assignment_and_blocked_module(self):
+		self.classic()
+		role_profile = frappe.get_doc(
+			{"doctype": "Role Profile", "role_profile": "_WL Classic Roles", "roles": [{"role": "_WL Nav A"}]}
+		).insert()
+		user = frappe.get_doc("User", "wl-nav-system@example.test")
+		user.append("role_profiles", {"role_profile": role_profile.name})
+		user.save()
+		self.profile(
+			"_WL Role Profile View",
+			["_WL Nav A"],
+			assignments=[{"applies_to": "Role Profile", "role_profile": role_profile.name}],
+		)
+		self.as_system()
+		self.assertEqual(navigation.build_context()["home"]["name"], "_WL Nav A")
+		frappe.set_user("Administrator")
+		user = frappe.get_doc("User", user.name)
+		user.append("block_modules", {"module": "Core"})
+		user.save()
+		self.as_system()
+		self.assertEqual(navigation.build_context()["tree"], [])
+
+	def test_classic_personal_visibility_can_be_disabled(self):
+		self.classic()
+		self.profile("_WL No Personal", ["_WL Nav A"])
+		private = frappe.get_doc(
+			{
+				"doctype": "Workspace",
+				"label": "_WL Hidden Personal",
+				"title": "_WL Hidden Personal",
+				"module": "Core",
+				"public": 0,
+				"for_user": "wl-nav-system@example.test",
+				"content": "[]",
+			}
+		).insert()
+		self.settings.show_personal_workspaces = 0
+		self.settings.save()
+		self.as_system()
+		self.assertNotIn(private.name, [item["name"] for item in navigation.build_context()["tree"]])
+
 	def request(self, path, method="GET"):
 		return patch.object(
 			frappe.local,

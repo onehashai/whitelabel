@@ -49,6 +49,9 @@ frappe.pages["workspace-directory"].on_page_show = async function (wrapper) {
     );
   }
   if (context.can_manage_settings) {
+    page.add_menu_item(__("Manage Navigation Profiles"), () =>
+      frappe.set_route("List", "Whitelabel Navigation Profile")
+    );
     page.add_menu_item(__("Manage Workspace Navigation"), () =>
       frappe.set_route("Form", "Whitelabel Setting")
     );
