@@ -198,7 +198,7 @@ class TestWorkspaceNavigation(IntegrationTestCase):
 				assignments=[{"applies_to": "User", "user": "wl-nav-portal@example.test"}],
 			)
 
-	def test_classic_higher_priority_parent_placement_wins(self):
+	def test_classic_preserves_distinct_parent_branches(self):
 		self.classic()
 		self.profile(
 			"_WL Tree One", [{"workspace": "_WL Nav A", "parent_workspace": "_WL Nav B"}, "_WL Nav B"]
@@ -210,8 +210,44 @@ class TestWorkspaceNavigation(IntegrationTestCase):
 		)
 		self.as_system()
 		tree = navigation.build_context()["tree"]
-		self.assertEqual(len(tree), 2)
-		self.assertEqual(tree[1]["parent"], None)
+		self.assertEqual(len(tree), 4)
+		self.assertEqual(len({node["id"] for node in tree}), 4)
+		self.assertEqual(
+			{node["parent"] for node in tree if node["name"] == "_WL Nav A"}, {None, "_WL Nav B"}
+		)
+		self.assertEqual(
+			{node["parent"] for node in tree if node["name"] == "_WL Nav B"}, {None, "_WL Nav A"}
+		)
+
+	def test_classic_shared_child_appears_under_each_parent_once(self):
+		self.classic()
+		shared = frappe.get_doc(
+			{
+				"doctype": "Workspace",
+				"label": "_WL Shared Child",
+				"title": "_WL Shared Child",
+				"public": 1,
+				"module": "Core",
+				"content": "[]",
+				"roles": [{"role": "_WL Nav A"}],
+			}
+		).insert()
+		for title, parent, priority in (
+			("_WL Shared One", "_WL Nav A", 10),
+			("_WL Shared Two", "_WL Nav B", 20),
+			("_WL Shared Duplicate", "_WL Nav A", 30),
+		):
+			self.profile(
+				title, [parent, {"workspace": shared.name, "parent_workspace": parent}], priority=priority
+			)
+		self.as_system()
+		context = navigation.build_context()
+		nodes = [node for node in context["tree"] if node["name"] == shared.name]
+		self.assertEqual(len(nodes), 2)
+		self.assertEqual({node["parent"] for node in nodes}, {"_WL Nav A", "_WL Nav B"})
+		self.assertNotEqual(nodes[0]["route"], nodes[1]["route"])
+		self.assertTrue(all("navigation_path=" in node["route"] for node in nodes))
+		self.assertEqual(len([item for item in context["workspaces"] if item["name"] == shared.name]), 1)
 
 	def test_classic_personal_home_and_outside_profile_home(self):
 		self.classic()

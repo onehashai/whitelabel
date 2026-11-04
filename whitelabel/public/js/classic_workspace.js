@@ -119,12 +119,6 @@ frappe.provide("whitelabel.classic");
     const controls = $("<div class='whitelabel-tree-controls'>").appendTo(
       container
     );
-    $(
-      "<button type='button' class='btn btn-default btn-sm whitelabel-tree-home'>"
-    )
-      .text(__("Home"))
-      .on("click", navigation.home)
-      .appendTo(controls);
     if (config.can_create_workspace && config.allow_personal_workspaces) {
       $(
         "<button type='button' class='btn btn-default btn-sm whitelabel-tree-new'>"
@@ -136,14 +130,6 @@ frappe.provide("whitelabel.classic");
           classic.new_workspace();
         });
     }
-    const search = $(
-      "<input type='search' class='form-control input-sm whitelabel-tree-search'>"
-    )
-      .attr({
-        placeholder: __("Find a workspace…"),
-        "aria-label": __("Find a workspace"),
-      })
-      .appendTo(container);
     const tree = $("<div role='tree'>")
       .attr("aria-label", __("Workspaces"))
       .appendTo(container);
@@ -156,16 +142,23 @@ frappe.provide("whitelabel.classic");
     }
     const items = config.tree || [];
     const children = new Map();
+    const personal_root = Symbol("personal");
+    const public_root = Symbol("public");
     for (const item of items) {
-      const key = item.parent || (item.private ? "__personal" : "__public");
+      const key =
+        item.parent_id ||
+        item.parent ||
+        (item.private ? personal_root : public_root);
       if (!children.has(key)) children.set(key, []);
       children.get(key).push(item);
     }
     const persist = () =>
       localStorage.setItem(storage_key(), JSON.stringify(expanded));
     const render_node = (item, parent) => {
+      const identifier = item.id || item.name;
       const wrapper = $("<div class='whitelabel-tree-node' role='treeitem'>")
         .attr("data-workspace", item.name)
+        .attr("data-navigation-id", identifier)
         .appendTo(parent);
       const row = $(
         "<div class='whitelabel-tree-row standard-sidebar-item'>"
@@ -189,7 +182,7 @@ frappe.provide("whitelabel.classic");
       const nested = $(
         "<div class='whitelabel-tree-children' role='group'>"
       ).appendTo(wrapper);
-      const descendants = children.get(item.name) || [];
+      const descendants = children.get(identifier) || [];
       const set_open = (open, remember = false) => {
         if (!descendants.length) return;
         nested.toggleClass("hidden", !open);
@@ -200,7 +193,7 @@ frappe.provide("whitelabel.classic");
             frappe.utils.icon(open ? "chevron-down" : "chevron-right", "xs")
           );
         if (remember) {
-          expanded[item.name] = open;
+          expanded[identifier] = open;
           persist();
         }
       };
@@ -219,11 +212,11 @@ frappe.provide("whitelabel.classic");
             set_open(wrapper.attr("aria-expanded") !== "true", true);
           });
         descendants.forEach((child) => render_node(child, nested));
-        set_open(expanded[item.name] === true);
+        set_open((expanded[identifier] ?? expanded[item.name]) === true);
       } else {
         nested.remove();
       }
-      sidebar.classic_nodes.set(item.name, {
+      sidebar.classic_nodes.set(identifier, {
         item,
         wrapper,
         row,
@@ -249,13 +242,16 @@ frappe.provide("whitelabel.classic");
         if (event.key === "ArrowLeft") {
           event.preventDefault();
           if (wrapper.attr("aria-expanded") === "true") set_open(false, true);
-          else sidebar.classic_nodes.get(item.parent)?.link.trigger("focus");
+          else
+            sidebar.classic_nodes
+              .get(item.parent_id || item.parent)
+              ?.link.trigger("focus");
         }
       });
     };
     for (const [key, title] of [
-      ["__personal", __("Personal")],
-      ["__public", __("Workspaces")],
+      [personal_root, __("Personal")],
+      [public_root, __("Workspaces")],
     ]) {
       const roots = children.get(key) || [];
       if (!roots.length) continue;
@@ -270,61 +266,40 @@ frappe.provide("whitelabel.classic");
         .text(__("No workspaces assigned."))
         .appendTo(tree);
     }
-    if (config.can_manage_settings) {
-      $(
-        "<button type='button' class='btn btn-default btn-sm whitelabel-tree-manage'>"
-      )
-        .text(__("Organise Workspaces"))
-        .appendTo(container)
-        .on("click", () => {
-          if (frappe.is_mobile()) sidebar.close();
-          frappe.set_route("List", "Whitelabel Navigation Profile");
-        });
-    }
-    search.on("input", () => {
-      const query = search.val().trim().toLocaleLowerCase();
-      const matches = new Set();
-      for (const item of items) {
-        if (
-          !query ||
-          `${item.label} ${item.name}`.toLocaleLowerCase().includes(query)
-        ) {
-          let name = item.name;
-          while (name && !matches.has(name)) {
-            matches.add(name);
-            name = sidebar.classic_nodes.get(name)?.item.parent;
-          }
-        }
-      }
-      for (const [name, node] of sidebar.classic_nodes) {
-        node.wrapper.toggleClass("hidden", !matches.has(name));
-        node.set_open(query ? true : expanded[name] === true);
-      }
-      tree.find("section").each((_, section) => {
-        $(section).toggleClass(
-          "hidden",
-          !$(section).children(".whitelabel-tree-node:not(.hidden)").length
-        );
-      });
-      if (!query) classic.select(sidebar);
-    });
     classic.select(sidebar);
   };
 
   classic.select = (sidebar) => {
     const route = frappe.get_route?.() || [];
-    if (route[0] === "Workspaces") sidebar.classic_selected = route.at(-1);
-    for (const [name, node] of sidebar.classic_nodes || []) {
-      const active = name === sidebar.classic_selected;
+    if (route[0] === "Workspaces") {
+      const workspace = route.at(-1);
+      const requested = new URLSearchParams(window.location.search).get(
+        "navigation_path"
+      );
+      // This is sidebar context, not a filter for the next document or list.
+      if (frappe.route_options) delete frappe.route_options.navigation_path;
+      if (sidebar.classic_nodes?.get(requested)?.item.name === workspace) {
+        sidebar.classic_selected = requested;
+      } else if (
+        sidebar.classic_nodes?.get(sidebar.classic_selected)?.item.name !==
+        workspace
+      ) {
+        sidebar.classic_selected = [...(sidebar.classic_nodes || [])].find(
+          ([, node]) => node.item.name === workspace
+        )?.[0];
+      }
+    }
+    for (const [identifier, node] of sidebar.classic_nodes || []) {
+      const active = identifier === sidebar.classic_selected;
       node.row.toggleClass("active-sidebar", active);
       node.link.attr("aria-current", active ? "page" : null);
       node.wrapper.attr("aria-selected", String(active));
       if (active) {
-        let parent = node.item.parent;
+        let parent = node.item.parent_id || node.item.parent;
         while (parent) {
           const ancestor = sidebar.classic_nodes.get(parent);
           ancestor?.set_open(true);
-          parent = ancestor?.item.parent;
+          parent = ancestor?.item.parent_id || ancestor?.item.parent;
         }
       }
     }

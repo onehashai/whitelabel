@@ -24,6 +24,76 @@ whitelabel.upstream_hosts = new Set([
 
 whitelabel.get_config = () => frappe.boot?.whitelabel_setting;
 
+whitelabel.install_search_aliases = function () {
+  const search = frappe.search?.utils;
+  if (!search || search.__whitelabel_aliases) return;
+  const get_doctypes = search.get_doctypes;
+  search.get_doctypes = function (keywords) {
+    const results = get_doctypes.call(this, keywords);
+    const normalize = (text) =>
+      String(text || "")
+        .toLocaleLowerCase()
+        .replace(/[\s_-]+/g, "");
+    const query = normalize(keywords);
+    if (!query) return results;
+    const config = whitelabel.get_config();
+    if (!config) return results;
+    const manager = frappe.user.has_role("System Manager");
+    const entries = [
+      {
+        doctype: "Whitelabel Setting",
+        label: "Brand Settings",
+        route: ["Form", "Whitelabel Setting", "Whitelabel Setting"],
+        aliases: [
+          "Whitelabel Setting",
+          "Whitelabel Settings",
+          "Brand Settings",
+          `${config.brand_name} Settings`,
+        ],
+      },
+      {
+        doctype: "Whitelabel Navigation Profile",
+        label: "Navigation Profiles",
+        route: ["List", "Whitelabel Navigation Profile"],
+        aliases: [
+          "Navigation Profile",
+          "Navigation Profiles",
+          "Whitelabel Navigation Profile",
+        ],
+      },
+    ];
+    for (const entry of entries) {
+      // Blocked modules affect discovery. These shortcuts still require the
+      // document's read role, and the destination enforces native permissions.
+      if (!manager && !frappe.boot.user.can_read.includes(entry.doctype))
+        continue;
+      if (
+        !entry.aliases
+          .concat(__(entry.label))
+          .some((alias) => normalize(alias).includes(query))
+      )
+        continue;
+      if (
+        results.some(
+          (result) =>
+            JSON.stringify(result.route) === JSON.stringify(entry.route)
+        )
+      )
+        continue;
+      results.push({
+        type: "",
+        label: __(entry.label),
+        value: __(entry.label),
+        index: 1,
+        match: entry.doctype,
+        route: entry.route,
+      });
+    }
+    return results;
+  };
+  search.__whitelabel_aliases = true;
+};
+
 whitelabel.parse_url = function (value) {
   if (!value) return null;
   try {
@@ -177,6 +247,7 @@ whitelabel.apply_branding = function () {
   if (!config) return;
 
   whitelabel.patch_menu_renderer();
+  whitelabel.install_search_aliases();
   whitelabel.patch_sidebar_help();
   whitelabel.filter_route_help();
   whitelabel.install_known_translations();

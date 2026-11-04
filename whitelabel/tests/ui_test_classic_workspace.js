@@ -13,6 +13,7 @@ const CREATED = "Classic Created";
 const PROFILE = "Classic Operator View";
 const MANAGER_PROFILE = "Classic Manager View";
 const ADMIN_PROFILE = "Classic Admin View";
+const PICKER_PROFILE = "Classic Picker View";
 const CARD = "Classic Browser Count";
 const BLOCK = "Classic Browser Block";
 const route = (name) => `/desk/${name.toLowerCase().replaceAll(" ", "-")}`;
@@ -49,12 +50,24 @@ const update = (doctype, name, values) =>
     name,
     fieldname: JSON.stringify(values),
   });
-const node = (name) =>
-  cy.get(`.whitelabel-tree-node[data-workspace="${name}"]`);
-const link = (name) =>
-  node(name).children(".whitelabel-tree-row").find(".whitelabel-tree-link");
-const toggle = (name) =>
-  node(name).children(".whitelabel-tree-row").find(".whitelabel-tree-toggle");
+const node = (name, parent) =>
+  parent
+    ? node(parent)
+        .children(".whitelabel-tree-children")
+        .children(`.whitelabel-tree-node[data-workspace="${name}"]`)
+    : cy.get(`.whitelabel-tree-node[data-workspace="${name}"]`);
+const link = (name, parent) =>
+  node(name, parent)
+    .children(".whitelabel-tree-row")
+    .find(".whitelabel-tree-link");
+const toggle = (name, parent) =>
+  node(name, parent)
+    .children(".whitelabel-tree-row")
+    .find(".whitelabel-tree-toggle");
+const openBranch = (name) =>
+  node(name).then(($node) => {
+    if ($node.attr("aria-expanded") !== "true") toggle(name).click();
+  });
 
 describe("Classic workspace", () => {
   before(() => {
@@ -165,7 +178,11 @@ describe("Classic workspace", () => {
       priority: 20,
       default_workspace: MANAGER,
       assignments: [{ applies_to: "Role", role: "Classic Manager Role" }],
-      workspaces: [{ workspace: MANAGER }, { workspace: BOARD }],
+      workspaces: [
+        { workspace: MANAGER },
+        { workspace: CHILD, parent_workspace: MANAGER },
+        { workspace: BOARD },
+      ],
     });
     insert({
       doctype: "Whitelabel Navigation Profile",
@@ -195,6 +212,7 @@ describe("Classic workspace", () => {
       ["Whitelabel Navigation Profile", PROFILE],
       ["Whitelabel Navigation Profile", MANAGER_PROFILE],
       ["Whitelabel Navigation Profile", ADMIN_PROFILE],
+      ["Whitelabel Navigation Profile", PICKER_PROFILE],
       ["User", USER],
       ...[
         OPERATOR,
@@ -236,32 +254,94 @@ describe("Classic workspace", () => {
       includeShadowDom: true,
     }).should("be.visible");
     cy.get("#whitelabel-navigation").should("not.exist");
+    cy.get(
+      ".whitelabel-tree-home, .whitelabel-tree-search, .whitelabel-tree-manage"
+    ).should("not.exist");
     cy.screenshot("classic-workspace-desktop", { capture: "viewport" });
   });
 
-  it("expands without navigation, searches nested workspaces, and remembers the selected branch", () => {
+  it("uses the available workspace width on wide screens and mobile without page overflow", () => {
     cy.login(USER, PASSWORD);
     cy.visit(route(OPERATOR));
-    link(CHILD).should("not.be.visible");
+    [1920, 1440, 1024, 390].forEach((width) => {
+      cy.viewport(width, 900);
+      cy.get('[data-page-route="Workspaces"]:visible .layout-main').should(
+        ($layout) => {
+          const document = $layout[0].ownerDocument;
+          const main = document.querySelector(".main-section");
+          const bounds = $layout[0].getBoundingClientRect();
+          expect(bounds.width, `workspace width at ${width}px`).to.be.at.least(
+            main.clientWidth - 2
+          );
+          expect(
+            bounds.left - main.getBoundingClientRect().left,
+            "left gutter"
+          ).to.be.within(0, 2);
+          expect(main.scrollWidth, "no horizontal page overflow").to.be.at.most(
+            main.clientWidth + 1
+          );
+        }
+      );
+      cy.get(".custom-block-widget-box:visible").should(($block) => {
+        const main = $block[0].ownerDocument.querySelector(".main-section");
+        expect(
+          $block[0].getBoundingClientRect().width,
+          "full-column custom block"
+        ).to.be.at.least(main.clientWidth - 64);
+      });
+    });
+    cy.viewport(1400, 960);
+  });
+
+  it("expands without navigation and remembers the selected branch", () => {
+    cy.login(USER, PASSWORD);
+    cy.visit(route(OPERATOR));
+    link(CHILD, OPERATOR).should("not.be.visible");
     toggle(OPERATOR).click();
     cy.location("pathname").should("eq", route(OPERATOR));
-    link(CHILD).should("be.visible");
-    toggle(CHILD).click();
+    link(CHILD, OPERATOR).should("be.visible");
+    toggle(CHILD, OPERATOR).click();
     link(GRANDCHILD).should("be.visible").click();
     cy.location("pathname").should("eq", route(GRANDCHILD));
     link(GRANDCHILD).should("have.attr", "aria-current", "page");
     cy.reload();
     link(GRANDCHILD).should("be.visible");
-    cy.get(".whitelabel-tree-search").type(MANAGER);
-    link(MANAGER).should("be.visible");
-    link(OPERATOR).should("not.be.visible");
-    cy.get(".whitelabel-tree-search").clear().type(GRANDCHILD);
-    link(OPERATOR).should("be.visible");
-    link(GRANDCHILD).should("be.visible");
-    cy.get(".whitelabel-tree-search").clear();
     link(OPERATOR).click();
     cy.location("pathname").should("eq", route(OPERATOR));
-    link(CHILD).should("be.visible");
+    link(CHILD, OPERATOR).should("be.visible");
+  });
+
+  it("shows a shared workspace under both parents and retains the chosen branch", () => {
+    cy.login(USER, PASSWORD);
+    cy.visit(route(OPERATOR));
+    openBranch(OPERATOR);
+    openBranch(MANAGER);
+    link(CHILD, OPERATOR).should("be.visible");
+    link(CHILD, MANAGER).should("be.visible").click();
+    cy.location("pathname").should("eq", route(CHILD));
+    cy.location("search").should("contain", "navigation_path=");
+    let managerPath;
+    cy.location("search").then((search) => {
+      managerPath = search;
+    });
+    link(CHILD, MANAGER).should("have.attr", "aria-current", "page");
+    cy.window().should((window) => {
+      expect(window.frappe.route_options?.navigation_path).to.eq(undefined);
+    });
+    link(CHILD, OPERATOR).should("not.have.attr", "aria-current");
+    cy.reload();
+    link(CHILD, MANAGER)
+      .should("be.visible")
+      .and("have.attr", "aria-current", "page");
+    openBranch(OPERATOR);
+    link(CHILD, OPERATOR).click();
+    cy.location("search").should((search) =>
+      expect(search).not.to.eq(managerPath)
+    );
+    link(CHILD, OPERATOR).should("have.attr", "aria-current", "page");
+    cy.go("back");
+    cy.location("search").should((search) => expect(search).to.eq(managerPath));
+    link(CHILD, MANAGER).should("have.attr", "aria-current", "page");
   });
 
   it("keeps the same tree on forms and returns directly Home from the native breadcrumb", () => {
@@ -352,6 +432,63 @@ describe("Classic workspace", () => {
     cy.contains("Classic workspace content is native", {
       includeShadowDom: true,
     }).should("be.visible");
+  });
+
+  it("lets a manager choose Home before adding workspace rows", () => {
+    cy.window().then((window) =>
+      window.frappe.new_doc("Whitelabel Navigation Profile")
+    );
+    cy.get('.frappe-control[data-fieldname="title"] input').type(
+      PICKER_PROFILE
+    );
+    cy.get('.frappe-control[data-fieldname="default_workspace"] input').type(
+      OPERATOR
+    );
+    cy.contains('.awesomplete [role="option"]:visible', OPERATOR).click();
+    cy.window().should((window) => {
+      expect(window.cur_frm.doc.default_workspace).to.eq(OPERATOR);
+      expect(
+        window.cur_frm.doc.workspaces.map((row) => row.workspace)
+      ).to.deep.eq([OPERATOR]);
+    });
+    cy.get(".page-container:visible .primary-action").click();
+    cy.window().should((window) =>
+      expect(window.cur_frm.is_dirty()).to.eq(false)
+    );
+  });
+
+  it("finds settings and navigation profiles through Ctrl+K aliases", () => {
+    cy.window().then((window) => {
+      // Reproduce a blocked Whitelabel module: the native doctype search list
+      // no longer advertises the app's management doctypes.
+      window.frappe.boot.user.can_read =
+        window.frappe.boot.user.can_read.filter(
+          (name) => !name.startsWith("Whitelabel")
+        );
+    });
+    cy.get("#navbar-modal-search").click();
+    cy.get("#navbar-search:visible").type("whitelabel settings");
+    cy.contains(".modal:visible .awesomplete li", "Brand Settings").click();
+    cy.window().should((window) =>
+      expect(window.cur_frm?.doctype).to.eq("Whitelabel Setting")
+    );
+    cy.window().should((window) => {
+      const results = window.frappe.search.utils.get_doctypes(
+        "navigation profiles"
+      );
+      expect(
+        results.some(
+          (entry) => entry.route?.[1] === "Whitelabel Navigation Profile"
+        )
+      ).to.eq(true);
+    });
+    cy.get("#navbar-modal-search").click();
+    cy.get("#navbar-search:visible").type("brand settings");
+    cy.contains(".modal:visible .awesomplete li", "Brand Settings").should(
+      "be.visible"
+    );
+    cy.get("#navbar-search:visible").type("{esc}");
+    cy.get(".modal:visible").should("not.exist");
   });
 
   it("restores the native sidebar when Classic mode is switched off", () => {

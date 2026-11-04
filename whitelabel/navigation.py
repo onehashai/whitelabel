@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from urllib.parse import urlencode, urlsplit
 
 import frappe
@@ -180,10 +181,18 @@ def build_context(pages=None, sidebars=None):
 	workspaces = _available_workspaces(pages)
 	classic = settings.get("desk_layout") == "Classic"
 	tree, profile_homes, profiles = [], [], []
+	tree_routes = {}
 	if classic:
 		from whitelabel.classic_navigation import curate
 
 		workspaces, tree, profile_homes, profiles = curate(workspaces, settings)
+		counts = Counter(node["name"] for node in tree)
+		for node in tree:
+			route = _workspace_url(workspaces[node["name"]])
+			if counts[node["name"]] > 1:
+				route += "?" + urlencode({"navigation_path": node["id"]})
+			node["route"] = route
+			tree_routes.setdefault(node["name"], route)
 		sidebars = {}
 	else:
 		sidebars = _available_sidebars(workspaces, sidebars)
@@ -223,7 +232,9 @@ def build_context(pages=None, sidebars=None):
 			if not preferred and name == settings.get("default_workspace"):
 				preferred = settings.get("default_workspace_sidebar")
 			home = dict(
-				name=name, route=_workspace_url(workspaces[name], _sidebar_for(name, sidebars, preferred))
+				name=name,
+				route=tree_routes.get(name)
+				or _workspace_url(workspaces[name], _sidebar_for(name, sidebars, preferred)),
 			)
 			break
 	items = [
@@ -233,14 +244,14 @@ def build_context(pages=None, sidebars=None):
 			module=w.get("module"),
 			icon=w.get("icon"),
 			private=not bool(w.public),
-			route=_workspace_url(w, _sidebar_for(w.name, sidebars)),
+			route=tree_routes.get(w.name) or _workspace_url(w, _sidebar_for(w.name, sidebars)),
 		)
 		for w in workspaces.values()
 	]
 	return dict(
 		enabled=True,
 		classic=classic,
-		tree=[{**node, "route": _workspace_url(workspaces[node["name"]])} for node in tree],
+		tree=tree,
 		navigation_profiles=profiles,
 		home=home,
 		home_route=home["route"] if home else DIRECTORY_ROUTE,

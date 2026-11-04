@@ -1,5 +1,8 @@
 """Curated navigation is a presentation layer, never an access grant."""
 
+import hashlib
+import json
+
 import frappe
 from frappe.utils import cint
 
@@ -40,65 +43,71 @@ def select_profiles(settings):
 
 def curate(workspaces, settings):
 	profiles = select_profiles(settings)
-	placements = {}
+	visible = {}
+	tree = {}
 	homes = []
+
+	def node_id(path):
+		encoded = json.dumps(path, ensure_ascii=False, separators=(",", ":")).encode()
+		return hashlib.sha256(encoded).hexdigest()[:24]
+
+	def add_tree(placements, private=False):
+		for workspace in placements:
+			if workspace not in workspaces or bool(workspaces[workspace].public) == private:
+				continue
+			path = []
+			seen = set()
+			current = workspace
+			while current and current in placements and current not in seen:
+				seen.add(current)
+				if current in workspaces and bool(workspaces[current].public) != private:
+					path.append(current)
+				current = placements.get(current, {}).get("parent")
+			path.reverse()
+			# A placement is identified by its full visible branch. Identical
+			# branches merge; the same workspace under another parent stays visible.
+			for index, name in enumerate(path):
+				visible.setdefault(name, workspaces[name])
+				placement = placements.get(name, {})
+				identifier = node_id(path[: index + 1])
+				tree.setdefault(
+					identifier,
+					dict(
+						id=identifier,
+						name=name,
+						parent=path[index - 1] if index else None,
+						parent_id=node_id(path[:index]) if index else None,
+						label=placement.get("label") or workspaces[name].get("title") or name,
+						icon=placement.get("icon") or workspaces[name].get("icon") or "folder",
+						private=private,
+					),
+				)
+
 	for rank, priority, name, profile in profiles:
 		if profile.default_workspace:
 			homes.append((rank, priority, name, profile.default_workspace))
-		for item in profile.workspaces:
-			placements.setdefault(
-				item.workspace,
-				dict(
-					parent=item.parent_workspace,
-					label=item.label,
-					icon=item.icon,
-				),
-			)
-	visible = {
-		name: workspace
-		for name, workspace in workspaces.items()
-		if (workspace.public and name in placements)
-		or (not workspace.public and cint(settings.get("show_personal_workspaces")))
-	}
-	parents = {}
-	for name, workspace in visible.items():
-		if not workspace.public:
-			parent = workspace.get("parent_page")
-			parents[name] = parent if parent in visible and not visible[parent].public else None
-			continue
-		parent = placements[name]["parent"]
-		seen = {name}
-		while parent and parent not in seen:
-			seen.add(parent)
-			if parent in visible:
-				break
-			parent = placements.get(parent, {}).get("parent")
-		parents[name] = parent if parent in visible and parent != name else None
-	# Independently valid profiles may introduce a cycle when merged. Break the
-	# first conflicting parent deterministically without losing a visible workspace.
-	for name in parents:
-		seen = {name}
-		parent = parents[name]
-		while parent:
-			if parent in seen:
-				parents[name] = None
-				break
-			seen.add(parent)
-			parent = parents.get(parent)
-	order = [name for name in placements if name in visible]
-	order.extend(name for name in visible if name not in placements)
-	return (
-		{name: visible[name] for name in order},
-		[
-			dict(
-				name=name,
-				parent=parents[name],
-				label=placements.get(name, {}).get("label") or visible[name].get("title") or name,
-				icon=placements.get(name, {}).get("icon") or visible[name].get("icon") or "folder",
-				private=not bool(visible[name].public),
-			)
-			for name in order
-		],
-		homes,
-		[profile.name for *_, profile in profiles],
-	)
+		add_tree(
+			{
+				item.workspace: dict(parent=item.parent_workspace, label=item.label, icon=item.icon)
+				for item in profile.workspaces
+			}
+		)
+
+	if cint(settings.get("show_personal_workspaces")):
+		private = {name: workspace for name, workspace in workspaces.items() if not workspace.public}
+		by_title = {workspace.get("title"): name for name, workspace in private.items()}
+		add_tree(
+			{
+				name: dict(
+					parent=(
+						workspace.get("parent_page")
+						if workspace.get("parent_page") in private
+						else by_title.get(workspace.get("parent_page"))
+					)
+				)
+				for name, workspace in private.items()
+			},
+			private=True,
+		)
+
+	return visible, list(tree.values()), homes, [profile.name for *_, profile in profiles]

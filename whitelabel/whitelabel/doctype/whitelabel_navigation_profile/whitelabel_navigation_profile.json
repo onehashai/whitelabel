@@ -40,7 +40,7 @@
       "label": "Home Workspace",
       "fieldtype": "Link",
       "options": "Workspace",
-      "description": "Must be included below. Existing personal Home preferences take precedence."
+      "description": "Selecting Home adds it to the workspace tree if needed. Existing personal Home preferences take precedence."
     },
     {
       "fieldname": "assignments_section",

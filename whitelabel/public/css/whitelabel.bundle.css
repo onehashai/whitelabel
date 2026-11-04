@@ -42,14 +42,23 @@
   overflow-y: auto;
 }
 
+/* Classic workspaces fill the area beside the tree. Keep this scoped to
+   workspace pages so form and report layouts retain their native sizing. */
+body.whitelabel-classic [data-page-route="Workspaces"] > .page-body,
+body.whitelabel-classic [data-page-route="Workspaces"] .page-head > .container,
+body.whitelabel-classic [data-page-route="Workspaces"] .layout-main {
+  width: 100%;
+  max-width: none;
+}
+body.whitelabel-classic [data-page-route="Workspaces"] .layout-main {
+  margin-inline: 0;
+}
+
 .whitelabel-classic-tree .whitelabel-tree-controls {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 10px;
-}
-.whitelabel-classic-tree .whitelabel-tree-search {
-  margin-bottom: 14px;
 }
 .whitelabel-tree-heading {
   color: var(--text-muted);
@@ -100,10 +109,6 @@
 .whitelabel-tree-empty {
   padding: 8px 6px;
 }
-.whitelabel-tree-manage {
-  margin: 8px 0;
-  white-space: normal;
-}
 .whitelabel-classic .body-sidebar .onboarding-sidebar,
 .whitelabel-classic .body-sidebar .promotional-banners,
 .whitelabel-classic .body-sidebar .body-sidebar-cards,
@@ -115,9 +120,6 @@
   .whitelabel-tree-controls,
 .whitelabel-classic
   .body-sidebar-container:not(.expanded)
-  .whitelabel-tree-search,
-.whitelabel-classic
-  .body-sidebar-container:not(.expanded)
   .whitelabel-tree-heading,
 .whitelabel-classic
   .body-sidebar-container:not(.expanded)
@@ -125,9 +127,6 @@
 .whitelabel-classic
   .body-sidebar-container:not(.expanded)
   .whitelabel-tree-toggle,
-.whitelabel-classic
-  .body-sidebar-container:not(.expanded)
-  .whitelabel-tree-manage,
 .whitelabel-classic
   .body-sidebar-container:not(.expanded)
   .whitelabel-tree-empty {
