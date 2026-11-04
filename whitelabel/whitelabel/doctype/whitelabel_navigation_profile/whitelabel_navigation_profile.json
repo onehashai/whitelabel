@@ -65,7 +65,7 @@
       "fieldtype": "Table",
       "options": "Whitelabel Navigation Item",
       "reqd": 1,
-      "description": "Rows define display order. Only these shared workspaces appear; permissions still apply."
+      "description": "Main workspaces with children appear before standalone workspaces. Rows define order within each group and branch. Permissions still apply."
     }
   ],
   "permissions": [

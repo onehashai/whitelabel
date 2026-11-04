@@ -255,11 +255,20 @@ frappe.provide("whitelabel.classic");
     ]) {
       const roots = children.get(key) || [];
       if (!roots.length) continue;
+      const has_children = (item) =>
+        !!children.get(item.id || item.name)?.length;
+      const ordered =
+        key === public_root
+          ? [
+              ...roots.filter(has_children),
+              ...roots.filter((item) => !has_children(item)),
+            ]
+          : roots;
       const section = $("<section class='whitelabel-tree-section'>").appendTo(
         tree
       );
       $("<div class='whitelabel-tree-heading'>").text(title).appendTo(section);
-      roots.forEach((item) => render_node(item, section));
+      ordered.forEach((item) => render_node(item, section));
     }
     if (!items.length) {
       $("<p class='text-muted whitelabel-tree-empty'>")

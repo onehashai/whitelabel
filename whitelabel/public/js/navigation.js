@@ -235,18 +235,22 @@ frappe.provide("whitelabel.navigation");
         icon: "home",
         onClick: navigation.home,
       },
-      {
-        name: "whitelabel-workspaces",
-        label: __("Workspaces"),
-        icon: "wallpaper",
-        onClick: navigation.show_switcher,
-      },
-      {
-        name: "whitelabel-directory",
-        label: __("All Workspaces"),
-        icon: "list",
-        onClick: () => navigation.open(config().directory_route),
-      },
+      ...(context.classic
+        ? []
+        : [
+            {
+              name: "whitelabel-workspaces",
+              label: __("Workspaces"),
+              icon: "wallpaper",
+              onClick: navigation.show_switcher,
+            },
+            {
+              name: "whitelabel-directory",
+              label: __("All Workspaces"),
+              icon: "list",
+              onClick: () => navigation.open(config().directory_route),
+            },
+          ]),
       {
         name: "whitelabel-desktop",
         label: __("All Apps"),

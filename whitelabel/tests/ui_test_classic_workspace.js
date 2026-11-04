@@ -246,6 +246,16 @@ describe("Classic workspace", () => {
       "have.length",
       1
     );
+    cy.get(".whitelabel-tree-section")
+      .last()
+      .children(".whitelabel-tree-node")
+      .should(($nodes) => {
+        expect([...$nodes].map((node) => node.dataset.workspace)).to.deep.eq([
+          OPERATOR,
+          MANAGER,
+          BOARD,
+        ]);
+      });
     cy.get(".whitelabel-classic-tree")
       .should("not.contain.text", RESTRICTED)
       .and("not.contain.text", UNLISTED)
@@ -257,6 +267,15 @@ describe("Classic workspace", () => {
     cy.get(
       ".whitelabel-tree-home, .whitelabel-tree-search, .whitelabel-tree-manage"
     ).should("not.exist");
+    cy.get(".sidebar-header").click();
+    cy.get(".frappe-menu:visible .menu-item-title").should(($items) => {
+      const labels = [...$items].map((item) => item.textContent.trim());
+      expect(labels).not.to.include("Workspaces");
+      expect(labels).not.to.include("All Workspaces");
+      expect(labels).to.include("Home");
+      expect(labels).to.include("All Apps");
+    });
+    cy.get("body").type("{esc}");
     cy.screenshot("classic-workspace-desktop", { capture: "viewport" });
   });
 
@@ -406,6 +425,11 @@ describe("Classic workspace", () => {
     cy.contains("Classic workspace content is native", {
       includeShadowDom: true,
     }).should("be.visible");
+    cy.window().then(
+      (window) =>
+        new Cypress.Promise((resolve) => window.frappe.after_ajax(resolve))
+    );
+    cy.window().then((window) => window.frappe.workspace.editor.isReady);
     cy.window().then((window) =>
       cy.wrap(window.frappe.workspace.workspace_actions_button).click()
     );
